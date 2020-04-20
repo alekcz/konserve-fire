@@ -109,5 +109,5 @@
                     :exception e})))))
 
 (defn delete-store [db]
-  nil)
-  ;(fire/delete! (:db db) (str (:root db)) (:auth db)))
+  (let [db (:db db)]
+    (fire/delete! (:db db) (str (:root db)) (:auth db))))
