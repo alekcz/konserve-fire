@@ -4,7 +4,8 @@
             [clojure.core.async :refer [<!! go] :as async]
             [konserve.core :refer :all]
             [konserve-fire.core :refer [new-fire-store delete-store]]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io])
+  (:import [clojure.lang ExceptionInfo]))
 
 (deftest fire-store-test
   (testing "Test the core API."
@@ -14,6 +15,7 @@
       (<!! (assoc store :foo :bar))
       (is (= (<!! (get store :foo))
              :bar))
+      (is (true? (<!! (exists? store :foo))))
       (<!! (assoc-in store [:foo] :bar2))
       (is (= :bar2 (<!! (get store :foo))))
       (is (= :default
@@ -34,3 +36,24 @@
       (is (= (<!! (get-in store [:foo]))
              nil))
       (delete-store store))))
+
+(deftest append-store-test
+  (testing "Test the append store functionality."
+    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+      (<!! (append store :foo {:bar 42}))
+      (<!! (append store :foo {:bar 43}))
+      (is (= (<!! (log store :foo))
+             '({:bar 42}{:bar 43})))
+      (is (= (<!! (reduce-log store
+                              :foo
+                              (fn [acc elem]
+                                (conj acc elem))
+                              []))
+             [{:bar 42} {:bar 43}]))
+      (delete-store store))))
+
+(deftest invalid-store-test
+  (testing "Test the append store functionality."
+    (let [store (<!! (new-fire-store "alekcz-dev" :env "DOES_NOT_EXIST"))]
+      (is (= ExceptionInfo (type store))))))
+    

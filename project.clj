@@ -7,5 +7,6 @@
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [io.replikativ/konserve "0.5.1"]
                  [byte-streams "0.2.2"]
-                 [alekcz/fire "0.0.2-SNAPSHOT"]]
-  :repl-options {:init-ns konserve-fire.core})
+                 [alekcz/fire "0.0.3-SNAPSHOT"]]
+  :repl-options {:init-ns konserve-fire.core}
+  :plugins [[lein-cloverage "1.1.2"]])

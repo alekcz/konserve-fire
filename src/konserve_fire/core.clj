@@ -20,7 +20,8 @@
   (edn/read-string (:kfd data')))
 
 (defn item-exists? [db id]
-  (nil? (fire/read (:db db) (str (:root db) "/" id) (:auth db) {:query-params {:shallow true}})))
+  (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db) {:shallow true})]
+    (true? resp)))
 
 (defn get-item [db id]
   (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db))]
@@ -37,12 +38,14 @@
 (defrecord FireStore [db serializer read-handlers write-handlers locks state]
   PEDNAsyncKeyValueStore
   (-exists? [this key] 
-    (let [id (str (uuid key))]
+    (let [id (str (uuid key)) res-ch (async/chan)]
       (go 
         (try 
-          (item-exists? db id)
+          (async/put! res-ch (item-exists? db id))
           (catch Exception e
-            (ex-info "Could not access item" {:type :access-error :id id :key key :exception e}))))))
+            (ex-info "Could not access item" {:type :access-error :id id :key key :exception e}))
+          (finally
+                (async/close! res-ch))))))
 
   (-get-in [this key-vec] 
     (let [[fkey & rkey] key-vec 
@@ -93,8 +96,7 @@
                 write-handlers (atom {})}}]
     (go 
       (try
-        (let [db (if (string? db) db (:path db))
-              auth (if (nil? env) (fire-auth/create-token) (fire-auth/create-token env))]
+        (let [auth (fire-auth/create-token env)]
           
           (map->FireStore { :db {:db db :auth auth :root root}
                             :serializer (ser/string-serializer)
@@ -103,10 +105,7 @@
                             :locks (atom {})
                             :state (atom {})}))
         (catch Exception e
-          (ex-info "Cannot connect to PostgreSQL."
-                    {:type :db-error
-                    :db db
-                    :exception e})))))
+          (ex-info "Could note connect to Realtime database." {:type :db-error :db db :exception e})))))
 
 (defn delete-store [db]
   (let [db (:db db)]
