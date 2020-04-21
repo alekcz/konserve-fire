@@ -8,16 +8,17 @@
                                         PBinaryAsyncKeyValueStore
                                         -bassoc -bget]]
             [clojure.core.async :as async]
+            [incognito.edn :refer [read-string-safe]]
             [clojure.edn :as edn]
             [fire.auth :as fire-auth]
             [fire.core :as fire]))
 
 
-(defn serilize [data]
+(defn serialize [data]
   {:kfd (pr-str data)})
 
-(defn deserilize [data']
-  (edn/read-string (:kfd data')))
+(defn deserialize [data']
+   (edn/read-string (:kfd data')))
 
 (defn item-exists? [db id]
   (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db) {:shallow true})]
@@ -25,11 +26,11 @@
 
 (defn get-item [db id]
   (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db))]
-    (deserilize resp)))
+    (deserialize resp)))
 
 (defn update-item [db id data]
-  (let [resp (fire/update! (:db db) (str (:root db) "/" id) (serilize data) (:auth db))]
-    (deserilize resp)))
+  (let [resp (fire/update! (:db db) (str (:root db) "/" id) (serialize data) (:auth db))]
+    (deserialize resp)))
 
 (defn delete-item [db id]
   (let [resp (fire/delete! (:db db) (str (:root db) "/" id) (:auth db))]

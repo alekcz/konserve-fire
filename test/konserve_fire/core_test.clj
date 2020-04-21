@@ -4,7 +4,8 @@
             [clojure.core.async :refer [<!! go] :as async]
             [konserve.core :refer :all]
             [konserve-fire.core :refer [new-fire-store delete-store]]
-            [clojure.java.io :as io])
+            [clojure.java.io :as io]
+            [superv.async :refer [<?? S]])
   (:import [clojure.lang ExceptionInfo]))
 
 (deftest fire-store-test
