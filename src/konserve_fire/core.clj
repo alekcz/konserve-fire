@@ -17,20 +17,20 @@
 (defn serialize [data]
   {:kfd (pr-str data)})
 
-(defn deserialize [data']
-   (edn/read-string (:kfd data')))
+(defn deserialize [data' read-handlers]
+   (read-string-safe @read-handlers (:kfd data')))
 
 (defn item-exists? [db id]
   (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db) {:shallow true})]
     (true? resp)))
 
-(defn get-item [db id]
+(defn get-item [db id read-handlers]
   (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db))]
-    (deserialize resp)))
+    (deserialize resp read-handlers)))
 
-(defn update-item [db id data]
+(defn update-item [db id data read-handlers]
   (let [resp (fire/update! (:db db) (str (:root db) "/" id) (serialize data) (:auth db))]
-    (deserialize resp)))
+    (deserialize resp read-handlers)))
 
 (defn delete-item [db id]
   (let [resp (fire/delete! (:db db) (str (:root db) "/" id) (:auth db))]
@@ -51,7 +51,7 @@
   (-get-in [this key-vec] 
     (let [[fkey & rkey] key-vec 
           id (str (uuid fkey))
-          val (get-item db id)]
+          val (get-item db id read-handlers)]
         (if (= val nil)
           (go nil)
           (let [res-ch (async/chan)]
@@ -69,9 +69,9 @@
   (-update-in [this key-vec up-fn args] 
     (let [[fkey & rkey] key-vec id (str (uuid fkey)) res-ch (async/chan)]
       (try
-        (let [old (get-item db id)
+        (let [old (get-item db id read-handlers)
               new-data (if (empty? rkey) (apply up-fn old args) (apply update-in old rkey up-fn args))
-              new (update-item db id new-data)]
+              new (update-item db id new-data read-handlers)]
           (async/put! res-ch [(get-in old rkey) (get-in new rkey)]))
         (catch Exception e
           (async/put! res-ch (ex-info "Could not write key." {:type :write-error :key fkey :exception e})))
