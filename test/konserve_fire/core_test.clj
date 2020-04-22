@@ -8,7 +8,7 @@
 
 (deftest fire-store-test
   (testing "Test the core API."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (is (= (<!! (k/get-in store [:foo]))
              nil))
       (is (= (<!! (k/get-in store [:foo nil]))
@@ -16,7 +16,7 @@
       (is (false? (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (= (<!! (k/get store :foo))
-             :bar))
+             :bar)
       (is (true? (<!! (k/exists? store :foo))))
       (<!! (k/assoc-in store [:foo] :bar2))
       (is (= :bar2 (<!! (k/get store :foo))))
@@ -45,7 +45,7 @@
 
 (deftest append-store-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t2-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (<!! (k/append store :foo {:bar 42}))
       (<!! (k/append store :foo {:bar 43}))
       (is (= (<!! (k/log store :foo))
@@ -77,7 +77,7 @@
 
 (deftest realistic-test
   (testing "Realistic data test."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t-" (+ 1 (rand-int 200) (rand-int 1100)))))
+    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
           home (mg/generate home {:size 1000 :seed 2})
           address (:address home)
           addressless (dissoc home :address)
@@ -106,8 +106,8 @@
 
 (deftest exceptions-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t-" (+ 1 (rand-int 200) (rand-int 1100)))))
-          corrupt (assoc-in store [:db :db] "")]
+    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
+          corrupt (assoc-in store [:db :db] "123")]
       (is (= ExceptionInfo (type (<!! (k/update-in store {} 10)))))
       (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
       (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
