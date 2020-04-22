@@ -2,6 +2,12 @@
 
 A PostgreSQL implementation of the [konserve kv-protocol](https://github.com/replikativ/konserve) on top of firebase.
 
+# Status
+
+![master](https://github.com/alekcz/konserve-fire/workflows/master/badge.svg)  
+
+_Pre-alpha_
+
 ## Prerequisites
 
 For konserve-fire you will need to create a Realtime Database on Firebase and store the service account credentials in the an environment variable. The default variable is `GOOGLE_APPLICATION_CREDENTIALS`
