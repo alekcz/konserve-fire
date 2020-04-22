@@ -14,7 +14,7 @@ For konserve-fire you will need to create a Realtime Database on Firebase and st
 
 ## Usage
 
-`[![Clojars Project](https://img.shields.io/clojars/v/alekcz/konserve-fire.svg)](https://clojars.org/alekcz/konserve-fire)`
+[![Clojars Project](https://img.shields.io/clojars/v/alekcz/konserve-fire.svg)](https://clojars.org/alekcz/konserve-fire)
 
 `[alekcz/konserve-fire "0.1.0"]`
 
