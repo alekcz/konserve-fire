@@ -53,15 +53,17 @@
   (-get-in [this key-vec] 
     (let [[fkey & rkey] key-vec 
           id (str (uuid fkey))
-          res-ch (async/chan)]
-        (try
-          (let [val (get-item db id read-handlers)]
-            (if (= val nil)
-              (async/close! res-ch)
-              (async/put! res-ch (if (empty? rkey) val (get-in val rkey)))))
-          (catch Exception e
-            (async/put! res-ch (ex-info "Could not read key." {:type :read-error :key key-vec :exception e}))))
-        res-ch))
+          val (get-item db id read-handlers)]
+        (if (= val nil)
+          (go nil)
+          (let [res-ch (async/chan)]
+            (try
+              (async/put! res-ch (if (empty? rkey) val (get-in val rkey)))
+              (catch Exception e
+                (async/put! res-ch (ex-info "Could not read key." {:type :read-error :key key-vec :exception e})))
+              (finally
+                (async/close! res-ch)))
+            res-ch))))
 
   (-update-in [this key-vec up-fn] 
     (-update-in this key-vec up-fn []))
