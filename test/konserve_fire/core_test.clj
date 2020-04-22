@@ -43,25 +43,25 @@
              nil))
       (delete-store store))))
 
-(deftest append-store-test
-  (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t2-" (+ 1 (rand-int 200) (rand-int 1100)))))]
-      (<!! (k/append store :foo {:bar 42}))
-      (<!! (k/append store :foo {:bar 43}))
-      (is (= (<!! (k/log store :foo))
-             '({:bar 42}{:bar 43})))
-      (is (= (<!! (k/reduce-log store
-                              :foo
-                              (fn [acc elem]
-                                (conj acc elem))
-                              []))
-             [{:bar 42} {:bar 43}]))
-      (delete-store store))))
+; (deftest append-store-test
+;   (testing "Test the append store functionality."
+;     (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t2-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+;       (<!! (k/append store :foo {:bar 42}))
+;       (<!! (k/append store :foo {:bar 43}))
+;       (is (= (<!! (k/log store :foo))
+;              '({:bar 42}{:bar 43})))
+;       (is (= (<!! (k/reduce-log store
+;                               :foo
+;                               (fn [acc elem]
+;                                 (conj acc elem))
+;                               []))
+;              [{:bar 42} {:bar 43}]))
+;       (delete-store store))))
 
-(deftest invalid-store-test
-  (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env "DOES_NOT_EXIST"))]
-      (is (= ExceptionInfo (type store))))))
+; (deftest invalid-store-test
+;   (testing "Test the append store functionality."
+;     (let [store (<!! (new-fire-store "alekcz-dev" :env "DOES_NOT_EXIST"))]
+;       (is (= ExceptionInfo (type store))))))
 
 (def home
   [:map
