@@ -16,7 +16,7 @@
       (is (false? (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (= (<!! (k/get store :foo))
-             :bar)
+             :bar))
       (is (true? (<!! (k/exists? store :foo))))
       (<!! (k/assoc-in store [:foo] :bar2))
       (is (= :bar2 (<!! (k/get store :foo))))
