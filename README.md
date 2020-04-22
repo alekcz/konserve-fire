@@ -1,6 +1,6 @@
 # konserve-fire
 
-A PostgreSQL implementation of the [konserve kv-protocol](https://github.com/replikativ/konserve) on top of firebase.
+A Firebase implementation of the [konserve kv-protocol](https://github.com/replikativ/konserve) on top of Realtime database.
 
 # Status
 
@@ -13,6 +13,10 @@ _Pre-alpha_
 For konserve-fire you will need to create a Realtime Database on Firebase and store the service account credentials in the an environment variable. The default variable is `GOOGLE_APPLICATION_CREDENTIALS`
 
 ## Usage
+
+`[![Clojars Project](https://img.shields.io/clojars/v/alekcz/konserve-fire.svg)](https://clojars.org/alekcz/konserve-fire)`
+
+`[alekcz/konserve-fire "0.1.0"]`
 
 ```clojure
 (require '[konserve-fire.core :refer :all]

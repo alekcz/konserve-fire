@@ -58,7 +58,7 @@
           (let [val (get-item db id read-handlers)]
             (if (= val nil)
               (async/close! res-ch)
-              (async/put! res-ch (if (empty? rkey) val (get-in val rkey)))))
+              (async/put! res-ch (get-in val (into [] rkey)))))
           (catch Exception e
             (async/put! res-ch (ex-info "Could not read key." {:type :read-error :key key-vec :exception e}))))
         res-ch))
