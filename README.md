@@ -4,7 +4,7 @@ A PostgreSQL implementation of the [konserve kv-protocol](https://github.com/rep
 
 # Status
 
-![master](https://github.com/alekcz/konserve-fire/workflows/master/badge.svg)  
+![master](https://github.com/alekcz/konserve-fire/workflows/master/badge.svg) [![codecov](https://codecov.io/gh/alekcz/konserve-fire/branch/master/graph/badge.svg)](https://codecov.io/gh/alekcz/konserve-fire)   
 
 _Pre-alpha_
 
