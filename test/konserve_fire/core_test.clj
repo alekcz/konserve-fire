@@ -34,7 +34,7 @@
       (is (= (<!! (k/get-in store [:baz]))
              {:bar 43}))
       (is (= (<!! (k/get-in store [:baz ""]))
-             {:bar 43}))             
+             nil))             
       (<!! (k/update-in store [:baz :bar] + 2 3))
       (is (= (<!! (k/get-in store [:baz :bar]))
              48))
@@ -88,11 +88,11 @@
       
       (<!! (k/assoc store name addressless))
       (is (= addressless 
-             (<!! (k/get store name))))
+             (<!! (k/get-in store [name]))))
 
       (<!! (k/assoc-in store [name :address] address))
       (is (= home 
-             (<!! (k/get store name))))
+             (<!! (k/get-in store [name]))))
 
       (<!! (k/update-in store [name :capacity] * floater))
       (is (= (* floater (:capacity home)) 
