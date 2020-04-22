@@ -1,14 +1,34 @@
 # konserve-fire
 
-A Clojure library designed to ... well, that part is up to you.
+A PostgreSQL implementation of the [konserve kv-protocol](https://github.com/replikativ/konserve) on top of firebase.
+
+## Prerequisites
+
+For konserve-fire you will need to create a Realtime Database on Firebase and store the service account credentials in the an environment variable. The default variable is `GOOGLE_APPLICATION_CREDENTIALS`
 
 ## Usage
 
-FIXME
+```clojure
+(require '[konserve-fire.core :refer :all]
+         '[clojure.core.async :refer [<!!] :as async]
+         '[konserve.core :as k])
+  
+  (def fire-store (<!! (new-fire-store "db-name" :env "GOOGLE_APPLICATION_CREDENTIALS" :root "/konserve")))
+
+  (<!! (k/exists? fire-store  "cecilia"))
+  (<!! (k/get-in fire-store ["cecilia"]))
+  (<!! (k/assoc-in fire-store ["cecilia"] 28))
+  (<!! (k/update-in fire-store ["cecilia"] inc))
+  (<!! (k/get-in fire-store ["cecilia"]))
+
+  (defrecord Test [a])
+  (<!! (k/assoc-in fire-store ["agatha"] (Test. 35)))
+  (<!! (k/get-in fire-store ["agatha"]))
+```
 
 ## License
 
-Copyright © 2020 FIXME
+Copyright © 2020 Alexander Oloo
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
