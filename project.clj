@@ -1,4 +1,4 @@
-(defproject alekcz/konserve-fire "0.0.9-SNAPSHOT"
+(defproject alekcz/konserve-fire "0.1.0-SNAPSHOT"
   :description "A Firebase backend for konserve."
   :url "https://github.com/alekcz/konserve-fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
@@ -11,4 +11,5 @@
                  [io.replikativ/incognito "0.2.5"]
                  [io.replikativ/superv.async "0.2.9"]]
   :repl-options {:init-ns konserve-fire.core}
-  :plugins [[lein-cloverage "1.1.2"]])
+  :plugins [[lein-cloverage "1.1.2"]]
+  :profiles { :dev {:dependencies [[metosin/malli "0.0.1-SNAPSHOT"]]}})
