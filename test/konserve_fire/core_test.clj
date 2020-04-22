@@ -11,6 +11,9 @@
     (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (is (= (<!! (k/get-in store [:foo]))
              nil))
+      (is (= (<!! (k/get-in store [:foo nil]))
+             nil))
+      (is (false? (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (= (<!! (k/get store :foo))
              :bar))
@@ -28,6 +31,10 @@
       (<!! (k/update-in store [:baz :bar] inc))
       (is (= (<!! (k/get-in store [:baz :bar]))
              43))
+      (is (= (<!! (k/get-in store [:baz]))
+             {:bar 43}))
+      (is (= (<!! (k/get-in store [:baz ""]))
+             {:bar 43}))             
       (<!! (k/update-in store [:baz :bar] + 2 3))
       (is (= (<!! (k/get-in store [:baz :bar]))
              48))
@@ -96,3 +103,17 @@
              (<!! (k/get-in store [name :address :number]))))             
       
       (delete-store store))))
+
+(deftest exceptions-test
+  (testing "Test the append store functionality."
+    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t-" (+ 1 (rand-int 200) (rand-int 1100)))))
+          corrupt (assoc-in store [:db :db] "")]
+      (is (= ExceptionInfo (type (<!! (k/update-in store {} 10)))))
+      (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
+      (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
+      (is (= ExceptionInfo (type (<!! (k/update corrupt :bad 10)))))
+      (is (= ExceptionInfo (type (<!! (k/dissoc corrupt :bad)))))
+      (is (= ExceptionInfo (type (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
+      (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
+      (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
+      (delete-store store))))      

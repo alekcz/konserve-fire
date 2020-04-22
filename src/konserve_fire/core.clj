@@ -13,6 +13,7 @@
             [fire.auth :as fire-auth]
             [fire.core :as fire]))
 
+(set! *warn-on-reflection* 1)
 
 (defn serialize [data]
   {:kfd (pr-str data)})
@@ -22,7 +23,7 @@
 
 (defn item-exists? [db id]
   (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db) {:shallow true})]
-    (true? resp)))
+    (some? resp)))
 
 (defn get-item [db id read-handlers]
   (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db))]
@@ -40,28 +41,27 @@
   PEDNAsyncKeyValueStore
   (-exists? [this key] 
     (let [id (str (uuid key)) res-ch (async/chan)]
-      (go 
-        (try 
-          (async/put! res-ch (item-exists? db id))
-          (catch Exception e
-            (ex-info "Could not access item" {:type :access-error :id id :key key :exception e}))
-          (finally
-                (async/close! res-ch))))))
+      (try 
+        (let [val (item-exists? db id)]
+          (async/put! res-ch val))
+        (catch Exception e
+          (async/put! res-ch (ex-info "Could not access item" {:type :access-error :id id :key key :exception e})))
+        (finally
+          (async/close! res-ch)))
+      res-ch))
 
   (-get-in [this key-vec] 
     (let [[fkey & rkey] key-vec 
           id (str (uuid fkey))
-          val (get-item db id read-handlers)]
-        (if (= val nil)
-          (go nil)
-          (let [res-ch (async/chan)]
-            (try
-              (async/put! res-ch (if (empty? rkey) val (get-in val rkey)))
-              (catch Exception e
-                (async/put! res-ch (ex-info "Could not read key." {:type :read-error :key key-vec :exception e})))
-              (finally
-                (async/close! res-ch)))
-            res-ch)))) 
+          res-ch (async/chan)]
+        (try
+          (let [val (get-item db id read-handlers)]
+            (if (= val nil)
+              (async/close! res-ch)
+              (async/put! res-ch (if (empty? rkey) val (get-in val rkey)))))
+          (catch Exception e
+            (async/put! res-ch (ex-info "Could not read key." {:type :read-error :key key-vec :exception e}))))
+        res-ch))
 
   (-update-in [this key-vec up-fn] 
     (-update-in this key-vec up-fn []))
@@ -83,10 +83,14 @@
     (-update-in this key-vec (fn [_] val)))
     
   (-dissoc [this key] 
-    (let [id (str (uuid key))]
-      (go 
-        (delete-item db id) 
-        nil))))
+    (let [id (str (uuid key)) res-ch (async/chan)]
+        (try  
+          (async/put! res-ch (delete-item db id))
+          (catch Exception e
+            (async/put! res-ch (ex-info "Could not delete key." {:type :write-error :key key :exception e})))
+          (finally
+            (async/close! res-ch)))
+        res-ch)))
 
 (defn new-fire-store
   "Creates an new store based on Firebase's realtime database."
@@ -95,18 +99,19 @@
                 root "/konserve-fire"
                 read-handlers (atom {})
                 write-handlers (atom {})}}]
-    (go 
+    (let [res-ch (async/chan)] 
       (try
         (let [auth (fire-auth/create-token env)]
-          
-          (map->FireStore { :db {:db db :auth auth :root root}
-                            :serializer (ser/string-serializer)
-                            :read-handlers read-handlers
-                            :write-handlers write-handlers
-                            :locks (atom {})
-                            :state (atom {})}))
+          (async/put! res-ch 
+            (map->FireStore { :db {:db db :auth auth :root root}
+                              :serializer (ser/string-serializer)
+                              :read-handlers read-handlers
+                              :write-handlers write-handlers
+                              :locks (atom {})
+                              :state (atom {})})))
         (catch Exception e
-          (ex-info "Could note connect to Realtime database." {:type :db-error :db db :exception e})))))
+          (async/put! res-ch (ex-info "Could note connect to Realtime database." {:type :db-error :db db :exception e}))))
+      res-ch))
 
 (defn delete-store [db]
   (let [db (:db db)]
