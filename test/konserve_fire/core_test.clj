@@ -75,34 +75,34 @@
         [:number int?]
         [:country [:enum "kenya" "lesotho" "south-africa" "italy" "mozambique" "spain" "india" "brazil" "usa" "germany"]]]]])
 
-(deftest realistic-test
-  (testing "Realistic data test."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
-          home (mg/generate home {:size 1000 :seed 2})
-          address (:address home)
-          addressless (dissoc home :address)
-          name (mg/generate keyword? {:size 15 :seed 3})
-          num1 (mg/generate pos-int? {:size 5 :seed 4})
-          num2 (mg/generate pos-int? {:size 5 :seed 5})
-          floater (mg/generate float? {:size 5 :seed 6})]
+; (deftest realistic-test
+;   (testing "Realistic data test."
+;     (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
+;           home (mg/generate home {:size 1000 :seed 2})
+;           address (:address home)
+;           addressless (dissoc home :address)
+;           name (mg/generate keyword? {:size 15 :seed 3})
+;           num1 (mg/generate pos-int? {:size 5 :seed 4})
+;           num2 (mg/generate pos-int? {:size 5 :seed 5})
+;           floater (mg/generate float? {:size 5 :seed 6})]
       
-      (<!! (k/assoc store name addressless))
-      (is (= addressless 
-             (<!! (k/get-in store [name]))))
+;       (<!! (k/assoc store name addressless))
+;       (is (= addressless 
+;              (<!! (k/get-in store [name]))))
 
-      (<!! (k/assoc-in store [name :address] address))
-      (is (= home 
-             (<!! (k/get-in store [name]))))
+;       (<!! (k/assoc-in store [name :address] address))
+;       (is (= home 
+;              (<!! (k/get-in store [name]))))
 
-      (<!! (k/update-in store [name :capacity] * floater))
-      (is (= (* floater (:capacity home)) 
-             (<!! (k/get-in store [name :capacity]))))  
+;       (<!! (k/update-in store [name :capacity] * floater))
+;       (is (= (* floater (:capacity home)) 
+;              (<!! (k/get-in store [name :capacity]))))  
 
-      (<!! (k/update-in store [name :address :number] + num1 num2))
-      (is (= (+ num1 num2 (:number address)) 
-             (<!! (k/get-in store [name :address :number]))))             
+;       (<!! (k/update-in store [name :address :number] + num1 num2))
+;       (is (= (+ num1 num2 (:number address)) 
+;              (<!! (k/get-in store [name :address :number]))))             
       
-      (delete-store store))))
+;       (delete-store store))))
 
 (deftest exceptions-test
   (testing "Test the append store functionality."
