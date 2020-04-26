@@ -15,8 +15,14 @@
 
 (set! *warn-on-reflection* 1)
 
+(def maxi (* 9.5 1024 1024))
+
 (defn serialize [data]
-  {:kfd (pr-str data)})
+  (let [data' (pr-str data)
+        size (count data')]
+    (if (< size maxi)
+      {:kfd data'}
+      (throw (Exception. (str "Maximum value size exceeded!: " size))))))
 
 (defn deserialize [data' read-handlers]
    (read-string-safe @read-handlers (:kfd data')))

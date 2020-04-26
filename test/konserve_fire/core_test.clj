@@ -117,3 +117,13 @@
       (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
       (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
       (delete-store store))))      
+
+(deftest bulk-test
+  (testing "Bulk data test."
+    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/bulk-test")))
+          h (str (vec (take (* 10 1024 1024) (range))))]
+      (is (= ExceptionInfo (type (<!! (k/assoc store "record" h)))))
+      (delete-store store))))  
+
+    
+      
