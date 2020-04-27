@@ -35,6 +35,11 @@
       (is (= (<!! (k/get-in store [:baz :bar]))
              48))
       (<!! (k/dissoc store :foo))
+      (is (= (<!! (k/get-in store [:foo]))
+             nil))
+      (<!! (k/assoc-in store [:binbar] {:wishing "I could handle binary files"}))
+      (is (= #{:baz :binbar}
+             (<!! (async/into #{} (k/keys store)))))
       (delete-store store))))
 
 (deftest append-store-test
@@ -72,7 +77,7 @@
 (deftest realistic-test
   (testing "Realistic data test."
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
-          home (mg/generate home {:size 1000 :seed 2})
+          home (mg/generate home {:size 20 :seed 2})
           address (:address home)
           addressless (dissoc home :address)
           name (mg/generate keyword? {:size 15 :seed 3})
@@ -82,42 +87,42 @@
       
       (<!! (k/assoc store name addressless))
       (is (= addressless 
-             (<!! (k/get store [name]))))
+             (<!! (k/get store name))))
 
       (<!! (k/assoc-in store [name :address] address))
       (is (= home 
-             (<!! (k/get store [name]))))
+             (<!! (k/get store name))))
 
       (<!! (k/update-in store [name :capacity] * floater))
       (is (= (* floater (:capacity home)) 
-             (<!! (k/get store [name :capacity]))))  
+             (<!! (k/get-in store [name :capacity]))))  
 
       (<!! (k/update-in store [name :address :number] + num1 num2))
       (is (= (+ num1 num2 (:number address)) 
-             (<!! (k/get store [name :address :number]))))             
+             (<!! (k/get-in store [name :address :number]))))             
       
       (delete-store store))))
 
-(deftest exceptions-test
-  (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
-          corrupt (assoc-in store [:db :db] "123")]
-      (is (= ExceptionInfo (type (<!! (k/update-in store {} 10)))))
-      (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
-      (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
-      (is (= ExceptionInfo (type (<!! (k/update corrupt :bad 10)))))
-      (is (= ExceptionInfo (type (<!! (k/dissoc corrupt :bad)))))
-      (is (= ExceptionInfo (type (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
-      (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
-      (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
-      (delete-store store))))      
+; (deftest exceptions-test
+;   (testing "Test the append store functionality."
+;     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
+;           corrupt (assoc-in store [:db :db] "123")]
+;       (is (= ExceptionInfo (type (<!! (k/update-in store {} 10)))))
+;       (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
+;       (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
+;       (is (= ExceptionInfo (type (<!! (k/update corrupt :bad inc)))))
+;       (is (= ExceptionInfo (type (<!! (k/dissoc corrupt :bad)))))
+;       (is (= ExceptionInfo (type (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
+;       (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
+;       (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
+;       (delete-store store))))      
 
-(deftest bulk-test
-  (testing "Bulk data test."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
-          h (str (vec (take (* 10 1024 1024) (range))))]
-      (is (= ExceptionInfo (type (<!! (k/assoc store "record" h)))))
-      (delete-store store))))  
+; (deftest bulk-test
+;   (testing "Bulk data test."
+;     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
+;           h (str (vec (take (* 10 1024 1024) (range))))]
+;       (is (= ExceptionInfo (type (<!! (k/assoc store "record" h)))))
+;       (delete-store store))))  
 
     
       

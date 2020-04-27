@@ -1,13 +1,13 @@
 (ns konserve-fire.core
   "Address globally aggregated immutable key-value store(s)."
-  (:require [clojure.core.async :refer [go]]
+  (:require [clojure.core.async :refer [go to-chan]]
             [konserve.serializers :as ser]
             [hasch.core :as hasch]
             [konserve.protocols :refer [PEDNAsyncKeyValueStore
                                         -exists? -get -get-meta
                                         -update-in -assoc-in -dissoc
-                                        PBinaryAsyncKeyValueStore
-                                        -bassoc -bget]]
+                                        PKeyIterable
+                                        -keys]]
             [clojure.core.async :as async]
             [incognito.edn :refer [read-string-safe]]
             [clojure.edn :as edn]
@@ -29,20 +29,27 @@
    (read-string-safe @read-handlers (:kfd data')))
 
 (defn item-exists? [db id]
-  (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db) {:shallow true})]
+  (let [resp (fire/read (:db db) (str (:root db) "/keys/" id) (:auth db) {:shallow true})]
     (some? resp)))
 
 (defn get-item [db id read-handlers]
-  (let [resp (fire/read (:db db) (str (:root db) "/" id) (:auth db))]
+  (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db))]
     (deserialize resp read-handlers)))
 
 (defn update-item [db id data read-handlers]
-  (let [resp (fire/update! (:db db) (str (:root db) "/" id) (serialize data) (:auth db))]
+  (let [resp (fire/update! (:db db) (str (:root db) "/data/" id) (serialize data) (:auth db))
+        _ (fire/update! (:db db) (str (:root db) "/keys/" id) {:key (-> data first :key pr-str)} (:auth db))]
     (deserialize resp read-handlers)))
 
 (defn delete-item [db id]
-  (let [resp (fire/delete! (:db db) (str (:root db) "/" id) (:auth db))]
+  (let [_ (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db))
+        resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db))]
     resp))  
+
+(defn get-keys [db]
+  (let [resp (fire/read (:db db) (str (:root db) "/keys") (:auth db))
+        extract (fn [k] (read-string-safe {} k))]
+    (map #(-> % :key extract) (vals resp))))
 
 (defn uuid [key]
   (str (hasch/uuid key)))
@@ -64,12 +71,15 @@
                                 (if rkey
                                   (apply update-in data rkey up-fn args)
                                   (apply up-fn data args))])
-                            read-handlers)
-            _ (println updated-val)]
+                            read-handlers)]
         [(second old-val)
          (second updated-val)])))
   (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
-  (-dissoc [this key] (go (delete-item state (uuid key)) nil)))
+  (-dissoc [this key] (go (delete-item state (uuid key)) nil))
+  
+  PKeyIterable
+  (-keys [_]
+    (to-chan (get-keys state))))
 
 (defn new-fire-store
   "Creates an new store based on Firebase's realtime database."
