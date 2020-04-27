@@ -2,9 +2,10 @@
   "Address globally aggregated immutable key-value store(s)."
   (:require [clojure.core.async :refer [go]]
             [konserve.serializers :as ser]
-            [hasch.core :refer [uuid]]
+            [hasch.core :as hasch]
             [konserve.protocols :refer [PEDNAsyncKeyValueStore
-                                        -exists? -get-in -update-in
+                                        -exists? -get -get-meta
+                                        -update-in -assoc-in -dissoc
                                         PBinaryAsyncKeyValueStore
                                         -bassoc -bget]]
             [clojure.core.async :as async]
@@ -43,82 +44,52 @@
   (let [resp (fire/delete! (:db db) (str (:root db) "/" id) (:auth db))]
     resp))  
 
-(defrecord FireStore [db serializer read-handlers write-handlers locks state]
+(defn uuid [key]
+  (str (hasch/uuid key)))
+
+(defrecord FireStore [state read-handlers write-handlers locks]
   PEDNAsyncKeyValueStore
-  (-exists? [this key] 
-    (let [id (str (uuid key)) res-ch (async/chan)]
-      (try 
-        (let [val (item-exists? db id)]
-          (async/put! res-ch val))
-        (catch Exception e
-          (async/put! res-ch (ex-info "Could not access item" {:type :access-error :id id :key key :exception e})))
-        (finally
-          (async/close! res-ch)))
-      res-ch))
-
-  (-get-in [this key-vec] 
-    (let [[fkey & rkey] key-vec 
-          id (str (uuid fkey))
-          res-ch (async/chan)]
-        (try
-          (let [val (get-item db id read-handlers)]
-            (if (= val nil)
-              (async/close! res-ch)
-              (async/put! res-ch (get-in val (into [] rkey)))))
-          (catch Exception e
-            (async/put! res-ch (ex-info "Could not read key." {:type :read-error :key key-vec :exception e}))))
-        res-ch))
-
-  (-update-in [this key-vec up-fn] 
-    (-update-in this key-vec up-fn []))
-
-  (-update-in [this key-vec up-fn args] 
-    (let [[fkey & rkey] key-vec id (str (uuid fkey)) res-ch (async/chan)]
-      (try
-        (let [old (get-item db id read-handlers)
-              new-data (if (empty? rkey) (apply up-fn old args) (apply update-in old rkey up-fn args))
-              new (update-item db id new-data read-handlers)]
-          (async/put! res-ch [(get-in old rkey) (get-in new rkey)]))
-        (catch Exception e
-          (async/put! res-ch (ex-info "Could not write key." {:type :write-error :key fkey :exception e})))
-        (finally
-          (async/close! res-ch)))
-      res-ch))
-
-  (-assoc-in [this key-vec val] 
-    (-update-in this key-vec (fn [_] val)))
-    
-  (-dissoc [this key] 
-    (let [id (str (uuid key)) res-ch (async/chan)]
-        (try  
-          (async/put! res-ch (delete-item db id))
-          (catch Exception e
-            (async/put! res-ch (ex-info "Could not delete key." {:type :write-error :key key :exception e})))
-          (finally
-            (async/close! res-ch)))
-        res-ch)))
+  (-exists? [this key] (go (if (item-exists? state (uuid key)) true false)))
+  (-get [this key] (go (second (get-item state (uuid key) read-handlers))))
+  (-get-meta [this key] (go (first (get-item state (uuid key)))))
+  (-update-in [this key-vec meta-up-fn up-fn args]
+    (go
+      (let [[fkey & rkey] key-vec
+            old-val (get-item state (uuid fkey) read-handlers)
+            updated-val (update-item 
+                            state
+                            (uuid fkey)
+                            (let [[meta data] old-val]
+                              [(meta-up-fn meta)
+                                (if rkey
+                                  (apply update-in data rkey up-fn args)
+                                  (apply up-fn data args))])
+                            read-handlers)
+            _ (println updated-val)]
+        [(second old-val)
+         (second updated-val)])))
+  (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
+  (-dissoc [this key] (go (delete-item state (uuid key)) nil)))
 
 (defn new-fire-store
   "Creates an new store based on Firebase's realtime database."
-  [db & {:keys [env root read-handlers write-handlers]
-          :or  {env nil
-                root "/konserve-fire"
+  [env & {:keys [root read-handlers write-handlers]
+          :or  {root "/konserve-fire"
                 read-handlers (atom {})
                 write-handlers (atom {})}}]
     (let [res-ch (async/chan)] 
       (try
         (let [auth (fire-auth/create-token env)]
           (async/put! res-ch 
-            (map->FireStore { :db {:db db :auth auth :root root}
+            (map->FireStore { :state {:db (:project-id auth) :auth auth :root root}
                               :serializer (ser/string-serializer)
                               :read-handlers read-handlers
                               :write-handlers write-handlers
-                              :locks (atom {})
-                              :state (atom {})})))
+                              :locks (atom {})})))
         (catch Exception e
-          (async/put! res-ch (ex-info "Could note connect to Realtime database." {:type :db-error :db db :exception e}))))
+          (async/put! res-ch (ex-info "Could note connect to Realtime database." {:type :db-error :state env :exception e}))))
       res-ch))
 
-(defn delete-store [db]
-  (let [db (:db db)]
-    (fire/delete! (:db db) (str (:root db)) (:auth db))))
+(defn delete-store [store]
+  (let [state (:state store)]
+    (fire/delete! (:db state) (str (:root state)) (:auth state))))

@@ -1,28 +1,28 @@
 (ns konserve-fire.core-test
   (:require [clojure.test :refer :all]
-            [clojure.core.async :refer [<!!] :as async]
+            [clojure.core.async :refer [<!! <! go chan put! close!] :as async]
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
+            [clojure.java.io :as io]
             [malli.generator :as mg])
   (:import [clojure.lang ExceptionInfo]))
 
 (deftest fire-store-test
   (testing "Test the core API."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
-      (is (= (<!! (k/get-in store [:foo]))
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+      (is (= (<!! (k/get store :foo))
              nil))
-      (is (= (<!! (k/get-in store [:foo nil]))
-             nil))
-      (is (false? (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (= (<!! (k/get store :foo))
              :bar))
-      (is (true? (<!! (k/exists? store :foo))))
       (<!! (k/assoc-in store [:foo] :bar2))
       (is (= :bar2 (<!! (k/get store :foo))))
       (is (= :default
              (<!! (k/get-in store [:fuu] :default))))
-      (<!! (k/update store :foo name))
+      (is (= :bar2 (<!! (k/get store :foo))))
+      (is (= :default
+             (<!! (k/get-in store [:fuu] :default))))
+      (<!! (k/update-in store [:foo] name))
       (is (= "bar2"
              (<!! (k/get store :foo))))
       (<!! (k/assoc-in store [:baz] {:bar 42}))
@@ -31,21 +31,15 @@
       (<!! (k/update-in store [:baz :bar] inc))
       (is (= (<!! (k/get-in store [:baz :bar]))
              43))
-      (is (= (<!! (k/get-in store [:baz]))
-             {:bar 43}))
-      (is (= (<!! (k/get-in store [:baz ""]))
-             nil))             
       (<!! (k/update-in store [:baz :bar] + 2 3))
       (is (= (<!! (k/get-in store [:baz :bar]))
              48))
       (<!! (k/dissoc store :foo))
-      (is (= (<!! (k/get-in store [:foo]))
-             nil))
       (delete-store store))))
 
 (deftest append-store-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t2-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t2-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (<!! (k/append store :foo {:bar 42}))
       (<!! (k/append store :foo {:bar 43}))
       (is (= (<!! (k/log store :foo))
@@ -60,7 +54,7 @@
 
 (deftest invalid-store-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env "DOES_NOT_EXIST"))]
+    (let [store (<!! (new-fire-store "DOES_NOT_EXIST"))]
       (is (= ExceptionInfo (type store))))))
 
 (def home
@@ -77,7 +71,7 @@
 
 (deftest realistic-test
   (testing "Realistic data test."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
           home (mg/generate home {:size 1000 :seed 2})
           address (:address home)
           addressless (dissoc home :address)
@@ -88,25 +82,25 @@
       
       (<!! (k/assoc store name addressless))
       (is (= addressless 
-             (<!! (k/get-in store [name]))))
+             (<!! (k/get store [name]))))
 
       (<!! (k/assoc-in store [name :address] address))
       (is (= home 
-             (<!! (k/get-in store [name]))))
+             (<!! (k/get store [name]))))
 
       (<!! (k/update-in store [name :capacity] * floater))
       (is (= (* floater (:capacity home)) 
-             (<!! (k/get-in store [name :capacity]))))  
+             (<!! (k/get store [name :capacity]))))  
 
       (<!! (k/update-in store [name :address :number] + num1 num2))
       (is (= (+ num1 num2 (:number address)) 
-             (<!! (k/get-in store [name :address :number]))))             
+             (<!! (k/get store [name :address :number]))))             
       
       (delete-store store))))
 
 (deftest exceptions-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
           corrupt (assoc-in store [:db :db] "123")]
       (is (= ExceptionInfo (type (<!! (k/update-in store {} 10)))))
       (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
@@ -120,7 +114,7 @@
 
 (deftest bulk-test
   (testing "Bulk data test."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/bulk-test")))
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
           h (str (vec (take (* 10 1024 1024) (range))))]
       (is (= ExceptionInfo (type (<!! (k/assoc store "record" h)))))
       (delete-store store))))  
