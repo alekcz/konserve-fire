@@ -10,7 +10,6 @@
                                         -keys]]
             [clojure.core.async :as async]
             [incognito.edn :refer [read-string-safe]]
-            [clojure.edn :as edn]
             [fire.auth :as fire-auth]
             [fire.core :as fire]))
 
@@ -36,9 +35,13 @@
   (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db))]
     (deserialize resp read-handlers)))
 
+(defn get-item-meta [db id read-handlers]
+  (let [resp (fire/read (:db db) (str (:root db) "/keys/" id) (:auth db))]
+    (read-string-safe @read-handlers resp)))
+
 (defn update-item [db id data read-handlers]
   (let [resp (fire/update! (:db db) (str (:root db) "/data/" id) (serialize data) (:auth db))
-        _ (fire/update! (:db db) (str (:root db) "/keys/" id) {:key (-> data first :key pr-str)} (:auth db))]
+        _ (fire/update! (:db db) (str (:root db) "/keys/" id) {:key (-> data first pr-str)} (:auth db))]
     (deserialize resp read-handlers)))
 
 (defn delete-item [db id]
@@ -48,7 +51,7 @@
 
 (defn get-keys [db]
   (let [resp (fire/read (:db db) (str (:root db) "/keys") (:auth db))
-        extract (fn [k] (read-string-safe {} k))]
+        extract (fn [k] (:key (read-string-safe {} k)))]
     (map #(-> % :key extract) (vals resp))))
 
 (defn uuid [key]
@@ -58,7 +61,7 @@
   PEDNAsyncKeyValueStore
   (-exists? [this key] (go (if (item-exists? state (uuid key)) true false)))
   (-get [this key] (go (second (get-item state (uuid key) read-handlers))))
-  (-get-meta [this key] (go (first (get-item state (uuid key)))))
+  (-get-meta [this key] (go (get-item-meta state (uuid key))))
   (-update-in [this key-vec meta-up-fn up-fn args]
     (go
       (let [[fkey & rkey] key-vec
