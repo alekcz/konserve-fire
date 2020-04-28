@@ -1,6 +1,6 @@
 (ns konserve-fire.core
   "Address globally aggregated immutable key-value store(s)."
-  (:require [clojure.core.async :refer [go to-chan]]
+  (:require [clojure.core.async :refer [go to-chan thread] :as async]
             [konserve.serializers :as ser]
             [hasch.core :as hasch]
             [konserve.protocols :refer [PEDNAsyncKeyValueStore
@@ -8,7 +8,7 @@
                                         -update-in -assoc-in -dissoc
                                         PKeyIterable
                                         -keys]]
-            [clojure.core.async :as async]
+            [konserve.utils :refer [go-try <? throw-if-exception]]
             [incognito.edn :refer [read-string-safe]]
             [fire.auth :as fire-auth]
             [fire.core :as fire]))
@@ -57,13 +57,35 @@
 (defn uuid [key]
   (str (hasch/uuid key)))
 
+(defmacro thread-try
+  "Asynchronously executes the body in a go block. Returns a channel
+  which will receive the result of the body when completed or the
+  exception if an exception is thrown. You are responsible to take
+  this exception and deal with it! This means you need to take the
+  result from the cannel at some point or the supervisor will take
+  care of the error."
+  {:style/indent 1}
+  [& body]
+  (let [[body finally] (if (= (first (last body)) 'finally)
+                         [(butlast body) (rest (last body))]
+                         [body])]
+    `(let [
+           ]
+       (thread
+         (try
+           ~@body
+           (catch Exception e#
+             e#)
+           (finally
+             ~@finally))))))
+
 (defrecord FireStore [state read-handlers write-handlers locks]
   PEDNAsyncKeyValueStore
-  (-exists? [this key] (go (if (item-exists? state (uuid key)) true false)))
-  (-get [this key] (go (second (get-item state (uuid key) read-handlers))))
-  (-get-meta [this key] (go (get-item-meta state (uuid key))))
+  (-exists? [this key] (thread-try (if (item-exists? state (uuid key)) true false)))
+  (-get [this key] (thread-try (second (get-item state (uuid key) read-handlers))))
+  (-get-meta [this key] (thread-try (get-item-meta state (uuid key))))
   (-update-in [this key-vec meta-up-fn up-fn args]
-    (go
+    (thread-try
       (let [[fkey & rkey] key-vec
             old-val (get-item state (uuid fkey) read-handlers)
             updated-val (update-item 
@@ -78,11 +100,11 @@
         [(second old-val)
          (second updated-val)])))
   (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
-  (-dissoc [this key] (go (delete-item state (uuid key)) nil))
+  (-dissoc [this key] (thread-try (delete-item state (uuid key)) nil))
   
   PKeyIterable
   (-keys [_]
-    (to-chan (get-keys state))))
+    (async/to-chan (get-keys state))))
 
 (defn new-fire-store
   "Creates an new store based on Firebase's realtime database."
@@ -90,18 +112,13 @@
           :or  {root "/konserve-fire"
                 read-handlers (atom {})
                 write-handlers (atom {})}}]
-    (let [res-ch (async/chan)] 
-      (try
-        (let [auth (fire-auth/create-token env)]
-          (async/put! res-ch 
-            (map->FireStore { :state {:db (:project-id auth) :auth auth :root root}
-                              :serializer (ser/string-serializer)
-                              :read-handlers read-handlers
-                              :write-handlers write-handlers
-                              :locks (atom {})})))
-        (catch Exception e
-          (async/put! res-ch (ex-info "Could note connect to Realtime database." {:type :db-error :state env :exception e}))))
-      res-ch))
+    (go-try
+      (let [auth (fire-auth/create-token env)]
+        (map->FireStore { :state {:db (:project-id auth) :auth auth :root root}
+                          :serializer (ser/string-serializer)
+                          :read-handlers read-handlers
+                          :write-handlers write-handlers
+                          :locks (atom {})}))))
 
 (defn delete-store [store]
   (let [state (:state store)]

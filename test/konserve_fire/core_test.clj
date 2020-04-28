@@ -5,7 +5,8 @@
             [konserve-fire.core :refer [new-fire-store delete-store]]
             [clojure.java.io :as io]
             [malli.generator :as mg])
-  (:import [clojure.lang ExceptionInfo]))
+  (:import  [clojure.lang ExceptionInfo]
+            [java.io IOException]))
 
 (deftest fire-store-test
   (testing "Test the core API."
@@ -60,7 +61,7 @@
 (deftest invalid-store-test
   (testing "Test the append store functionality."
     (let [store (<!! (new-fire-store "DOES_NOT_EXIST"))]
-      (is (= ExceptionInfo (type store))))))
+      (is (= IOException (type store))))))
 
 (def home
   [:map
@@ -103,26 +104,24 @@
       
       (delete-store store))))
 
-; (deftest exceptions-test
-;   (testing "Test the append store functionality."
-;     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
-;           corrupt (assoc-in store [:db :db] "123")]
-;       (is (= ExceptionInfo (type (<!! (k/update-in store {} 10)))))
-;       (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
-;       (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
-;       (is (= ExceptionInfo (type (<!! (k/update corrupt :bad inc)))))
-;       (is (= ExceptionInfo (type (<!! (k/dissoc corrupt :bad)))))
-;       (is (= ExceptionInfo (type (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
-;       (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
-;       (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
-;       (delete-store store))))      
+(deftest exceptions-test
+  (testing "Test the append store functionality."
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
+          corrupt (assoc-in store [:state :db] "123")]
+      (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
+      (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
+      (is (= ExceptionInfo (type (<!! (k/dissoc corrupt :bad)))))
+      (is (= ExceptionInfo (type (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
+      (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
+      (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
+      (delete-store store))))      
 
-; (deftest bulk-test
-;   (testing "Bulk data test."
-;     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
-;           h (str (vec (take (* 10 1024 1024) (range))))]
-;       (is (= ExceptionInfo (type (<!! (k/assoc store "record" h)))))
-;       (delete-store store))))  
+(deftest bulk-test
+  (testing "Bulk data test."
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
+          h (str (vec (take (* 10 1024 1024) (range))))]
+      (is (= Exception (type (<!! (k/assoc store "record" h)))))
+      (delete-store store))))  
 
     
       
