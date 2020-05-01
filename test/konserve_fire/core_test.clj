@@ -8,14 +8,16 @@
   (:import  [clojure.lang ExceptionInfo]
             [java.io IOException]))
 
+
+
 (deftest fire-store-test
   (testing "Test the core API."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/at1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (is (= (<!! (k/get store :foo))
              nil))
-      (<!! (k/assoc store :foo :bar))
-      (is (= (<!! (k/get store :foo))
-             :bar))
+      (time (<!! (k/assoc store :foo :bar)))
+      (time(is (= (<!! (k/get store :foo))
+             :bar)))
       (<!! (k/assoc-in store [:foo] :bar2))
       (is (= :bar2 (<!! (k/get store :foo))))
       (is (= :default
@@ -119,8 +121,9 @@
 (deftest bulk-test
   (testing "Bulk data test."
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
-          h (str (vec (take (* 10 1024 1024) (range))))]
-      (is (= Exception (type (<!! (k/assoc store "record" h)))))
+          h (apply str (vec (take (* 10 1024 1024) (range))))]
+      (<!! (k/assoc store :record h))    
+      (is (= h (<!! (k/get store :record))))
       (delete-store store))))  
 
     

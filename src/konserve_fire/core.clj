@@ -1,6 +1,6 @@
 (ns konserve-fire.core
   "Address globally aggregated immutable key-value store(s)."
-  (:require [clojure.core.async :refer [go to-chan thread] :as async]
+  (:require [clojure.core.async :refer [go to-chan thread <!!] :as async]
             [konserve.serializers :as ser]
             [hasch.core :as hasch]
             [konserve.protocols :refer [PEDNAsyncKeyValueStore
@@ -11,7 +11,8 @@
             [konserve.utils :refer [go-try <? throw-if-exception]]
             [incognito.edn :refer [read-string-safe]]
             [fire.auth :as fire-auth]
-            [fire.core :as fire]))
+            [fire.core :as fire]
+            [clojure.string :as str]))
 
 (set! *warn-on-reflection* 1)
 
@@ -19,38 +20,42 @@
 
 (defn serialize [data]
   (let [data' (pr-str data)
+        segments (str/split data' #"(?<=\G.{5000000})")
         size (count data')]
-    (if (< size maxi)
-      {:kfd data'}
-      (throw (Exception. (str "Maximum value size exceeded!: " size))))))
+     {:kfd segments}))   
+    ; (if (< size maxi)
+    ;   {:kfd segments}
+    ;   (throw (Exception. (str "Maximum value size exceeded!: " size))))))
 
 (defn deserialize [data' read-handlers]
-   (read-string-safe @read-handlers (:kfd data')))
+  (if (nil? data')
+    data'
+    (read-string-safe @read-handlers (apply str (:kfd data')))))
 
 (defn item-exists? [db id]
-  (let [resp (fire/read (:db db) (str (:root db) "/keys/" id) (:auth db) {:shallow true})]
+  (let [resp (fire/read (:db db) (str (:root db) "/keys/" id) (:auth db) {:query {:shallow true} :pool (:pool db)})]
     (some? resp)))
 
 (defn get-item [db id read-handlers]
-  (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db))]
+  (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db) {:pool (:pool db)})]
     (deserialize resp read-handlers)))
 
 (defn get-item-meta [db id read-handlers]
-  (let [resp (fire/read (:db db) (str (:root db) "/keys/" id) (:auth db))]
+  (let [resp (fire/read (:db db) (str (:root db) "/keys/" id) (:auth db) {:pool (:pool db)})]
     (read-string-safe @read-handlers resp)))
 
 (defn update-item [db id data read-handlers]
-  (let [resp (fire/update! (:db db) (str (:root db) "/data/" id) (serialize data) (:auth db))
-        _ (fire/update! (:db db) (str (:root db) "/keys/" id) {:key (-> data first pr-str)} (:auth db))]
+  (let [resp (fire/update! (:db db) (str (:root db) "/data/" id) (serialize data) (:auth db) {:pool (:pool db)})
+        _ (fire/update! (:db db) (str (:root db) "/keys/" id) {:key (-> data first pr-str)} (:auth db) {:pool (:pool db)})]
     (deserialize resp read-handlers)))
 
 (defn delete-item [db id]
-  (let [_ (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db))
-        resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db))]
+  (let [_ (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db) {:pool (:pool db)})
+        resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db) {:pool (:pool db)})]
     resp))  
 
 (defn get-keys [db]
-  (let [resp (fire/read (:db db) (str (:root db) "/keys") (:auth db))
+  (let [resp (fire/read (:db db) (str (:root db) "/keys") (:auth db) {:pool (:pool db)})
         extract (fn [k] (:key (read-string-safe {} k)))]
     (map #(-> % :key extract) (vals resp))))
 
@@ -112,9 +117,10 @@
           :or  {root "/konserve-fire"
                 read-handlers (atom {})
                 write-handlers (atom {})}}]
-    (go-try
-      (let [auth (fire-auth/create-token env)]
-        (map->FireStore { :state {:db (:project-id auth) :auth auth :root root}
+    (thread-try
+      (let [auth (fire-auth/create-token env)
+            pool (fire/connection-pool 100)]
+        (map->FireStore { :state {:db (:project-id auth) :auth auth :root root :pool pool}
                           :serializer (ser/string-serializer)
                           :read-handlers read-handlers
                           :write-handlers write-handlers
