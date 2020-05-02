@@ -16,14 +16,24 @@
 
 (set! *warn-on-reflection* 1)
 
+(def maxi (* 9.5 1024 1024))
+
 (defn serialize [data]
-  (let [data' {:kfd (str/split (pr-str data) #"(?<=\G.{5000000})")}]
-    data'))
+  (let [serialized (-> data second pr-str)]
+    (while (> (count serialized) maxi) 
+      (throw (ex-info "Maximum size exceeded" {:cause "Value in kv-pair must be less than 10MB when serialized. 
+                                                        See firebase limits."})))
+    (let [contents {:meta (-> data first pr-str)
+                    :data (-> data second pr-str)}
+          data' {:kfd contents}] 
+      data')))
 
 (defn deserialize [data' read-handlers]
-  (if (nil? data')
-     nil
-    (read-string-safe @read-handlers (apply str (:kfd data')))))
+  (let [meta' (-> data' :kfd :meta)
+        data' (-> data' :kfd :data)
+        meta (read-string-safe @read-handlers meta')
+        data (read-string-safe @read-handlers data')]
+    [meta data])) 
 
 (defn item-exists? [db id]
   (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db) {:query {:shallow true} :pool (:pool db)})]
@@ -42,12 +52,15 @@
     resp))  
 
 (defn get-keys [db read-handlers]
-  (let [resp (fire/read (:db db) (str (:root db) "/data") (:auth db) {:query {:shallow false} :pool (:pool db)})
+  (let [resp (fire/read (:db db) (str (:root db) "/data") (:auth db) {:pool (:pool db)})
         ans (map #(-> (deserialize % read-handlers) first :key) (seq (vals resp)))]
     ans))
 
-(defn uuid [key]
+(defn str-uuid [key]
   (str (hasch/uuid key)))
+
+(defn prep-ex [^Exception e]
+  (ex-info (.getMessage e) {:cause (.getCause e) :trace (.getStackTrace e)}))
 
 (defrecord FireStore [state read-handlers write-handlers locks]
   PEDNAsyncKeyValueStore
@@ -55,29 +68,30 @@
     (let [res-ch (chan 1)]
       (thread
         (try
-          (async/put! res-ch (item-exists? state (uuid key)))
-          (catch Exception e (async/put! res-ch e))
-          (finally (async/close! res-ch))))
+          (async/put! res-ch (item-exists? state (str-uuid key)))
+          (catch Exception e (async/put! res-ch (prep-ex e)))))
       res-ch))
 
   (-get [this key] 
-     (let [res-ch (chan 1)]
+    (let [res-ch (chan 1)]
       (thread
         (try
-          (let [res (get-item state (uuid key) read-handlers)]
-            (when (some? res) (async/put! res-ch (second res))))
-          (catch Exception e (async/put! res-ch e))
-          (finally (async/close! res-ch))))
+          (let [res (second (get-item state (str-uuid key) read-handlers))]
+            (if (some? res) 
+              (async/put! res-ch res)
+              (async/close! res-ch)))
+          (catch Exception e (async/put! res-ch (prep-ex e)))))
       res-ch))
 
   (-get-meta [this key] 
     (let [res-ch (chan 1)]
       (thread
         (try
-          (let [res (get-item state (uuid key) read-handlers)]
-            (when (some? res) (async/put! res-ch (first res))))
-          (catch Exception e (async/put! res-ch e))
-          (finally (async/close! res-ch))))
+          (let [res (first (get-item state (str-uuid key) read-handlers))]
+            (if (some? res) 
+              (async/put! res-ch res)
+              (async/close! res-ch)))
+          (catch Exception e (async/put! res-ch (prep-ex e)))))
       res-ch))
 
   (-update-in [this key-vec meta-up-fn up-fn args]
@@ -85,19 +99,15 @@
       (thread
         (try
           (let [[fkey & rkey] key-vec
-                old-val (get-item state (uuid fkey) read-handlers)
+                old-val (get-item state (str-uuid fkey) read-handlers)
                 updated-val (update-item 
                               state
-                              (uuid fkey)
+                              (str-uuid fkey)
                               (let [[meta data] old-val]
-                                [(meta-up-fn meta)
-                                  (if rkey
-                                    (apply update-in data rkey up-fn args)
-                                    (apply up-fn data args))])
+                                [(meta-up-fn meta) (if rkey (apply update-in data rkey up-fn args) (apply up-fn data args))])
                               read-handlers)]
-            [(second old-val) (second updated-val)])
-        (catch Exception e (async/put! res-ch e))
-        (finally (async/close! res-ch))))
+              (async/put! res-ch [(second old-val) (second updated-val)]))
+          (catch Exception e (async/put! res-ch (prep-ex e)))))
         res-ch))
 
   (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
@@ -106,9 +116,9 @@
     (let [res-ch (chan 1)]
       (thread
         (try
-          (delete-item state (uuid key))
-          (catch Exception e (async/put! res-ch e))
-          (finally (async/close! res-ch))))
+          (let [res (delete-item state (str-uuid key))]
+            (async/close! res-ch))
+          (catch Exception e (async/put! res-ch (prep-ex e)))))
         res-ch))
 
   PKeyIterable
@@ -118,8 +128,8 @@
         (try
           (doseq [k (get-keys state read-handlers)]
             (async/put! res-ch k))
-          (catch Exception e (async/put! res-ch e))
-          (finally (async/close! res-ch))))
+          (async/close! res-ch)
+          (catch Exception e (async/put! res-ch (prep-ex e)))))
         res-ch)))
 
 (defn new-fire-store
@@ -139,8 +149,7 @@
                                 :read-handlers read-handlers
                                 :write-handlers write-handlers
                                 :locks (atom {})})))
-          (catch Exception e (async/put! res-ch e))
-          (finally (async/close! res-ch))))
+          (catch Exception e (async/put! res-ch (prep-ex e)))))          
         res-ch))
 
 (defn delete-store [store]

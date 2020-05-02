@@ -3,12 +3,9 @@
             [clojure.core.async :refer [<!! <! go chan put! close!] :as async]
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
-            [clojure.java.io :as io]
+            [clojure.string :as str]
             [malli.generator :as mg])
-  (:import  [clojure.lang ExceptionInfo]
-            [java.io IOException]))
-
-
+  (:import  [clojure.lang ExceptionInfo]))
 
 (deftest core-test
   (testing "Test the core API."
@@ -43,7 +40,8 @@
       (<!! (k/assoc-in store [:binbar] {:wishing "I could handle binary files"}))
       (is (= #{:baz :binbar}
              (<!! (async/into #{} (k/keys store)))))
-      (delete-store store))))
+      (delete-store store)
+      nil)))
 
 (deftest append-store-test
   (testing "Test the append store functionality."
@@ -63,7 +61,7 @@
 (deftest invalid-store-test
   (testing "Test the append store functionality."
     (let [store (<!! (new-fire-store "DOES_NOT_EXIST"))]
-      (is (= IOException (type store))))))
+      (is (= ExceptionInfo (type store))))))
 
 (def home
   [:map
@@ -104,27 +102,15 @@
       (is (= (+ num1 num2 (:number address)) 
              (<!! (k/get-in store [name :address :number]))))             
       
-      (delete-store store))))
+      (delete-store store))))   
 
 (deftest ex-test
-  (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
-          corrupt (assoc-in store [:state :db] "123")]
-      (is (= ExceptionInfo (identity (<!! (k/get corrupt :bad)))))
-      (is (= ExceptionInfo (identity (<!! (k/assoc corrupt :bad 10)))))
-      (is (= ExceptionInfo (identity (<!! (k/dissoc corrupt :bad)))))
-      (is (= ExceptionInfo (identity (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
-      (is (= ExceptionInfo (identity (<!! (k/update-in corrupt [:bad :robot] inc)))))
-      (is (= ExceptionInfo (identity (<!! (k/exists? corrupt :bad)))))
-      (delete-store store))))      
-
-(deftest bulk-test
   (testing "Bulk data test."
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
-          h (apply str (vec (take (* 10 1024 1024) (range))))]
-      (<!! (k/assoc store :record h))    
-      (is (= h (<!! (k/get store :record))))
-      (delete-store store))))  
+          size20MB (apply str (vec (range 3000000)))]
+      (is (= ExceptionInfo (type (<!! (k/assoc store :record size20MB)))))
+      (delete-store store)
+      nil)))  
 
     
       
