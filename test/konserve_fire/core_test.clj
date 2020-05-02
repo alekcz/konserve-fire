@@ -10,14 +10,14 @@
 
 
 
-(deftest fire-store-test
+(deftest core-test
   (testing "Test the core API."
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/at1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (is (= (<!! (k/get store :foo))
              nil))
-      (time (<!! (k/assoc store :foo :bar)))
-      (time(is (= (<!! (k/get store :foo))
-             :bar)))
+      (<!! (k/assoc store :foo :bar))
+      (is (= (<!! (k/get store :foo))
+             :bar))
       (<!! (k/assoc-in store [:foo] :bar2))
       (is (= :bar2 (<!! (k/get store :foo))))
       (is (= :default
@@ -106,16 +106,16 @@
       
       (delete-store store))))
 
-(deftest exceptions-test
+(deftest ex-test
   (testing "Test the append store functionality."
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
           corrupt (assoc-in store [:state :db] "123")]
-      (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
-      (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
-      (is (= ExceptionInfo (type (<!! (k/dissoc corrupt :bad)))))
-      (is (= ExceptionInfo (type (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
-      (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
-      (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
+      (is (= ExceptionInfo (identity (<!! (k/get corrupt :bad)))))
+      (is (= ExceptionInfo (identity (<!! (k/assoc corrupt :bad 10)))))
+      (is (= ExceptionInfo (identity (<!! (k/dissoc corrupt :bad)))))
+      (is (= ExceptionInfo (identity (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
+      (is (= ExceptionInfo (identity (<!! (k/update-in corrupt [:bad :robot] inc)))))
+      (is (= ExceptionInfo (identity (<!! (k/exists? corrupt :bad)))))
       (delete-store store))))      
 
 (deftest bulk-test

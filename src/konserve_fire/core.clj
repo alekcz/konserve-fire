@@ -1,6 +1,6 @@
 (ns konserve-fire.core
   "Address globally aggregated immutable key-value store(s)."
-  (:require [clojure.core.async :refer [go to-chan thread <!!] :as async]
+  (:require [clojure.core.async :refer [thread chan onto-chan ] :as async]
             [konserve.serializers :as ser]
             [hasch.core :as hasch]
             [konserve.protocols :refer [PEDNAsyncKeyValueStore
@@ -16,100 +16,111 @@
 
 (set! *warn-on-reflection* 1)
 
-(def maxi (* 9.5 1024 1024))
-
 (defn serialize [data]
-  (let [data' (pr-str data)
-        segments (str/split data' #"(?<=\G.{5000000})")
-        size (count data')]
-     {:kfd segments}))   
-    ; (if (< size maxi)
-    ;   {:kfd segments}
-    ;   (throw (Exception. (str "Maximum value size exceeded!: " size))))))
+  (let [data' {:kfd (str/split (pr-str data) #"(?<=\G.{5000000})")}]
+    data'))
 
 (defn deserialize [data' read-handlers]
   (if (nil? data')
-    data'
+     nil
     (read-string-safe @read-handlers (apply str (:kfd data')))))
 
 (defn item-exists? [db id]
-  (let [resp (fire/read (:db db) (str (:root db) "/keys/" id) (:auth db) {:query {:shallow true} :pool (:pool db)})]
+  (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db) {:query {:shallow true} :pool (:pool db)})]
     (some? resp)))
 
 (defn get-item [db id read-handlers]
   (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db) {:pool (:pool db)})]
     (deserialize resp read-handlers)))
 
-(defn get-item-meta [db id read-handlers]
-  (let [resp (fire/read (:db db) (str (:root db) "/keys/" id) (:auth db) {:pool (:pool db)})]
-    (read-string-safe @read-handlers resp)))
-
 (defn update-item [db id data read-handlers]
-  (let [resp (fire/update! (:db db) (str (:root db) "/data/" id) (serialize data) (:auth db) {:pool (:pool db)})
-        _ (fire/update! (:db db) (str (:root db) "/keys/" id) {:key (-> data first pr-str)} (:auth db) {:pool (:pool db)})]
+  (let [resp (fire/update! (:db db) (str (:root db) "/data/" id) (serialize data) (:auth db) {:pool (:pool db)})]
     (deserialize resp read-handlers)))
 
 (defn delete-item [db id]
-  (let [_ (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db) {:pool (:pool db)})
-        resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db) {:pool (:pool db)})]
+  (let [resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db) {:pool (:pool db)})]
     resp))  
 
-(defn get-keys [db]
-  (let [resp (fire/read (:db db) (str (:root db) "/keys") (:auth db) {:pool (:pool db)})
-        extract (fn [k] (:key (read-string-safe {} k)))]
-    (map #(-> % :key extract) (vals resp))))
+(defn get-keys [db read-handlers]
+  (let [resp (fire/read (:db db) (str (:root db) "/data") (:auth db) {:query {:shallow false} :pool (:pool db)})
+        ans (map #(-> (deserialize % read-handlers) first :key) (seq (vals resp)))]
+    ans))
 
 (defn uuid [key]
   (str (hasch/uuid key)))
 
-(defmacro thread-try
-  "Asynchronously executes the body in a go block. Returns a channel
-  which will receive the result of the body when completed or the
-  exception if an exception is thrown. You are responsible to take
-  this exception and deal with it! This means you need to take the
-  result from the cannel at some point or the supervisor will take
-  care of the error."
-  {:style/indent 1}
-  [& body]
-  (let [[body finally] (if (= (first (last body)) 'finally)
-                         [(butlast body) (rest (last body))]
-                         [body])]
-    `(let [
-           ]
-       (thread
-         (try
-           ~@body
-           (catch Exception e#
-             e#)
-           (finally
-             ~@finally))))))
-
 (defrecord FireStore [state read-handlers write-handlers locks]
   PEDNAsyncKeyValueStore
-  (-exists? [this key] (thread-try (if (item-exists? state (uuid key)) true false)))
-  (-get [this key] (thread-try (second (get-item state (uuid key) read-handlers))))
-  (-get-meta [this key] (thread-try (get-item-meta state (uuid key))))
+  (-exists? [this key] 
+    (let [res-ch (chan 1)]
+      (thread
+        (try
+          (async/put! res-ch (item-exists? state (uuid key)))
+          (catch Exception e (async/put! res-ch e))
+          (finally (async/close! res-ch))))
+      res-ch))
+
+  (-get [this key] 
+     (let [res-ch (chan 1)]
+      (thread
+        (try
+          (let [res (get-item state (uuid key) read-handlers)]
+            (when (some? res) (async/put! res-ch (second res))))
+          (catch Exception e (async/put! res-ch e))
+          (finally (async/close! res-ch))))
+      res-ch))
+
+  (-get-meta [this key] 
+    (let [res-ch (chan 1)]
+      (thread
+        (try
+          (let [res (get-item state (uuid key) read-handlers)]
+            (when (some? res) (async/put! res-ch (first res))))
+          (catch Exception e (async/put! res-ch e))
+          (finally (async/close! res-ch))))
+      res-ch))
+
   (-update-in [this key-vec meta-up-fn up-fn args]
-    (thread-try
-      (let [[fkey & rkey] key-vec
-            old-val (get-item state (uuid fkey) read-handlers)
-            updated-val (update-item 
-                            state
-                            (uuid fkey)
-                            (let [[meta data] old-val]
-                              [(meta-up-fn meta)
-                                (if rkey
-                                  (apply update-in data rkey up-fn args)
-                                  (apply up-fn data args))])
-                            read-handlers)]
-        [(second old-val)
-         (second updated-val)])))
+     (let [res-ch (chan 1)]
+      (thread
+        (try
+          (let [[fkey & rkey] key-vec
+                old-val (get-item state (uuid fkey) read-handlers)
+                updated-val (update-item 
+                              state
+                              (uuid fkey)
+                              (let [[meta data] old-val]
+                                [(meta-up-fn meta)
+                                  (if rkey
+                                    (apply update-in data rkey up-fn args)
+                                    (apply up-fn data args))])
+                              read-handlers)]
+            [(second old-val) (second updated-val)])
+        (catch Exception e (async/put! res-ch e))
+        (finally (async/close! res-ch))))
+        res-ch))
+
   (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
-  (-dissoc [this key] (thread-try (delete-item state (uuid key)) nil))
-  
+
+  (-dissoc [this key] 
+    (let [res-ch (chan 1)]
+      (thread
+        (try
+          (delete-item state (uuid key))
+          (catch Exception e (async/put! res-ch e))
+          (finally (async/close! res-ch))))
+        res-ch))
+
   PKeyIterable
   (-keys [_]
-    (async/to-chan (get-keys state))))
+   (let [res-ch (chan)]
+      (thread
+        (try
+          (doseq [k (get-keys state read-handlers)]
+            (async/put! res-ch k))
+          (catch Exception e (async/put! res-ch e))
+          (finally (async/close! res-ch))))
+        res-ch)))
 
 (defn new-fire-store
   "Creates an new store based on Firebase's realtime database."
@@ -117,14 +128,20 @@
           :or  {root "/konserve-fire"
                 read-handlers (atom {})
                 write-handlers (atom {})}}]
-    (thread-try
-      (let [auth (fire-auth/create-token env)
-            pool (fire/connection-pool 100)]
-        (map->FireStore { :state {:db (:project-id auth) :auth auth :root root :pool pool}
-                          :serializer (ser/string-serializer)
-                          :read-handlers read-handlers
-                          :write-handlers write-handlers
-                          :locks (atom {})}))))
+    (let [res-ch (chan 1)]
+      (thread
+        (try
+          (let [auth (fire-auth/create-token env)
+                pool (fire/connection-pool 100)]
+            (async/put! res-ch
+              (map->FireStore { :state {:db (:project-id auth) :auth auth :root root :pool pool}
+                                :serializer (ser/string-serializer)
+                                :read-handlers read-handlers
+                                :write-handlers write-handlers
+                                :locks (atom {})})))
+          (catch Exception e (async/put! res-ch e))
+          (finally (async/close! res-ch))))
+        res-ch))
 
 (defn delete-store [store]
   (let [state (:state store)]
