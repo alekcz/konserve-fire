@@ -1,9 +1,8 @@
 (ns konserve-fire.core-test
   (:require [clojure.test :refer :all]
-            [clojure.core.async :refer [<!! <! go chan put! close!] :as async]
+            [clojure.core.async :refer [<!!] :as async]
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
-            [clojure.string :as str]
             [malli.generator :as mg])
   (:import  [clojure.lang ExceptionInfo]))
 
@@ -12,9 +11,11 @@
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/at1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (is (= (<!! (k/get store :foo))
              nil))
+      (is (not (<!! (k/exists? store :foo))))             
       (<!! (k/assoc store :foo :bar))
       (is (= (<!! (k/get store :foo))
              :bar))
+      (is (<!! (k/exists? store :foo)))
       (<!! (k/assoc-in store [:foo] :bar2))
       (is (= :bar2 (<!! (k/get store :foo))))
       (is (= :default
@@ -40,7 +41,7 @@
       (<!! (k/assoc-in store [:binbar] {:wishing "I could handle binary files"}))
       (is (= #{:baz :binbar}
              (<!! (async/into #{} (k/keys store)))))
-      (delete-store store)
+      ;(delete-store store)
       nil)))
 
 (deftest append-store-test
