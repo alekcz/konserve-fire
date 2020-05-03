@@ -6,9 +6,9 @@
   :aot :all
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [alekcz/fire "0.2.4"]
-                 ^{:voom {:repo "https://github.com/replikativ/konserve" :branch "feature_metadata_support"}};-20200427_-4fac6a9
-                 [io.replikativ/konserve "0.5.1"]
+                 ;[io.replikativ/konserve "0.5.1"]
                  [io.replikativ/incognito "0.2.5"]]
   :repl-options {:init-ns konserve-fire.core}
-  :plugins [[lein-cloverage "1.1.2"] [lein-voom "0.1.0-20190525_204305-g28f604d"]]
+  :plugins [[lein-cloverage "1.1.2"] [lein-git-deps "0.0.2"]]
+  :git-dependencies [["https://github.com/replikativ/konserve.git" "4fac6a9566b2402122f3664aac74d3a08eb36eb3"]]
   :profiles { :dev {:dependencies [[metosin/malli "0.0.1-20200404.091302-14"]]}})
