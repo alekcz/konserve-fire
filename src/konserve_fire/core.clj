@@ -6,16 +6,22 @@
             [konserve.protocols :refer [PEDNAsyncKeyValueStore
                                         -exists? -get -get-meta
                                         -update-in -assoc-in -dissoc
+                                        PBinaryAsyncKeyValueStore
+                                        -bassoc -bget
                                         PKeyIterable
                                         -keys]]
             [incognito.edn :refer [read-string-safe]]
             [fire.auth :as fire-auth]
             [fire.core :as fire]
-            [clojure.string :as str]))
+            [clojure.string :as str])
+  (:import  [java.util Base64]
+            [java.io ByteArrayInputStream]))
 
 (set! *warn-on-reflection* 1)
 
 (def maxi (* 9.5 1024 1024))
+(def b64encoder (. Base64 getEncoder))
+(def b64decoder (. Base64 getDecoder))
 
 (defn chunk-str [string]
   (let [chunks (str/split string #"(?<=\G.{5000000})")
@@ -28,17 +34,28 @@
         v {:meta {:d (-> data first pr-str)
                   :type "meta"}
            :data {:d (-> data second pr-str chunk-str)
-                  :type "data"}}]
+                  :type  "data"}}]
+    {(str "/keys/" id) k (str "/data/" id) v}))
+
+(defn bserialize [id data]
+  (let [finaldata (.encodeToString b64encoder ^"[B" (second data))
+        k {:d (-> data first pr-str)}
+        v {:meta {:d (-> data first pr-str)
+                  :type "meta"}
+           :data {:d (-> finaldata pr-str chunk-str)
+                  :type "binary"}}]
     {(str "/keys/" id) k (str "/data/" id) v}))
 
 (defn deserialize [data' read-handlers]
-  (if (= "data" (:type data'))
-    (let [joined (-> data' :d vals vec str/join)]
-      ;(println (:type data') data')
-      (read-string-safe @read-handlers joined))
-    (do
-      ;(println (:type data') data')
-      (read-string-safe @read-handlers (:d data')))))
+  (case (:type data')
+    "data" 
+      (let [joined (-> data' :d vals vec str/join)]
+        (read-string-safe @read-handlers joined))
+    "binary" 
+      (let [joined (-> data' :d vals vec str/join)
+            string (read-string-safe @read-handlers joined)]
+        (.decode b64decoder ^String string))
+    (read-string-safe @read-handlers (:d data'))))
     
 (defn item-exists? [db id]
   (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db) {:query {:shallow true} :pool (:pool db)})]
@@ -56,8 +73,9 @@
   (let [resp (fire/read (:db db) (str (:root db) "/data/" id "/meta") (:auth db) {:pool (:pool db)})]
     (deserialize resp read-handlers))) 
 
-(defn update-item [db id data read-handlers]
-  (let [resp (fire/update! (:db db) (str (:root db)) (serialize id data) (:auth db) {:pool (:pool db)})
+(defn update-item [db id data read-handlers binary?]
+  (let [serialized (if-not binary?  (serialize id data)  (bserialize id data))
+        resp (fire/update! (:db db) (str (:root db)) serialized (:auth db) {:pool (:pool db)})
         item (-> resp :data vals first)]
     [(deserialize (:meta item) read-handlers) (deserialize (:data item) read-handlers)]))
 
@@ -73,6 +91,9 @@
 
 (defn str-uuid [key]
   (str (hasch/uuid key)))
+
+(defn prep-stream [bytes]
+ {:input-stream  (ByteArrayInputStream. bytes):size (count bytes)})
 
 (defn prep-ex [^String message ^Exception e]
   (ex-info message {:error (.getMessage e) :cause (.getCause e) :trace (.getStackTrace e)}))
@@ -110,19 +131,20 @@
       res-ch))
 
   (-update-in [this key-vec meta-up-fn up-fn args]
-     (let [res-ch (async/chan 1)]
-      ;(async/thread
-        ;(try
-          (let [[fkey & rkey] key-vec
+    (let [res-ch (async/chan 1)]
+      (async/thread
+        (try
+          (let [binary? false
+                [fkey & rkey] key-vec
                 old-val (get-item state (str-uuid fkey) read-handlers)
-                updated-val (update-item 
+                new-val (update-item 
                               state
                               (str-uuid fkey)
                               (let [[meta data] old-val]
                                 [(meta-up-fn meta) (if rkey (apply update-in data rkey up-fn args) (apply up-fn data args))])
-                              read-handlers)]
-            (async/put! res-ch [(second old-val) (second updated-val)]))
-         ; (catch Exception e (async/put! res-ch (prep-ex "Failed to update or write value in store" e))));)
+                              read-handlers binary?)]
+            (async/put! res-ch [(second old-val) (second new-val)]))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to update or write value in store" e)))))
         res-ch))
 
   (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
@@ -134,6 +156,34 @@
           (delete-item state (str-uuid key))
           (async/close! res-ch)
           (catch Exception e (async/put! res-ch (prep-ex "Failed to delete key-value pair from store" e)))))
+        res-ch))
+
+  PBinaryAsyncKeyValueStore
+  (-bget [this key locked-cb]
+    (let [res-ch (async/chan 1)]
+      (async/thread
+        (try
+          (let [res (get-item-only state (str-uuid key) read-handlers)]
+            (if (some? res) 
+              (async/put! res-ch (locked-cb (prep-stream res)))  
+              (async/close! res-ch)))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve value from store" e)))))
+      res-ch))
+
+  (-bassoc [this key meta-up-fn input]
+    (let [res-ch (async/chan 1)]
+      (async/thread
+        (try
+          (let [binary? true
+                old-val (get-item state (str-uuid key) read-handlers)
+                new-val (update-item 
+                              state
+                              (str-uuid key)
+                              (let [[meta _] old-val] ;We ignore the existing binary data and overwrite it.
+                                [(meta-up-fn meta) input])
+                              read-handlers binary?)]
+            (async/put! res-ch [(second old-val) (second new-val)]))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to update or write value in store" e)))))
         res-ch))
 
   PKeyIterable

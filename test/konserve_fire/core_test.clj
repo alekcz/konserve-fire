@@ -1,6 +1,6 @@
 (ns konserve-fire.core-test
   (:require [clojure.test :refer :all]
-            [clojure.core.async :refer [<!!] :as async]
+            [clojure.core.async :refer [<!! thread] :as async]
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
             [malli.generator :as mg])
@@ -40,10 +40,13 @@
       (<!! (k/dissoc store :foo))
       (is (= (<!! (k/get-in store [:foo]))
              nil))
-      (<!! (k/assoc-in store [:binbar] {:wishing "I could handle binary files"}))
+      (<!! (k/bassoc store :binbar (byte-array (range 10))))
+      (<!! (k/bget store :binbar (fn [{:keys [input-stream]}]
+                                    (is (= (map byte (slurp input-stream))
+                                           (range 10))))))
       (is (= #{:baz :binbar}
              (<!! (async/into #{} (k/keys store)))))
-      ;(delete-store store)
+      (delete-store store)
       nil)))
 
 (deftest append-store-test
@@ -107,12 +110,17 @@
       
       (delete-store store))))   
 
-(deftest ex-test
+(deftest bulk-test
   (testing "Bulk data test."
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
-          size20MB (apply str (vec (range 3000000)))]
-      (time (<!! (k/assoc store :record size20MB)))
-      (is (= (count size20MB) (count (<!! (k/get store :record)))))
+          string20MB (apply str (vec (range 3000000)))
+          range20MB 20971520]
+      (time (<!! (k/assoc store :record string20MB)))
+      (is (= (count string20MB) (count (<!! (k/get store :record)))))
+      (time (<!! (k/bassoc store :binary (byte-array (repeat range20MB 7)))))
+      (<!! (k/bget store :binary (fn [{:keys [input-stream]}]
+                                    (is (= (map byte (slurp input-stream))
+                                           (repeat range20MB 7))))))
       (delete-store store))))  
 
     
