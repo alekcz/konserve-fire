@@ -4,7 +4,7 @@ A Firebase implementation of the [konserve kv-protocol](https://github.com/repli
 
 # Status
 
-![master](https://github.com/alekcz/konserve-fire/workflows/master/badge.svg) [![codecov](https://codecov.io/gh/alekcz/konserve-fire/branch/master/graph/badge.svg)](https://codecov.io/gh/alekcz/konserve-fire)   
+![master](https://github.com/alekcz/konserve-fire/workflows/master/badge.svg?branch=master) [![codecov](https://codecov.io/gh/alekcz/konserve-fire/branch/master/graph/badge.svg)](https://codecov.io/gh/alekcz/konserve-fire)   
 
 _Pre-alpha_
 
