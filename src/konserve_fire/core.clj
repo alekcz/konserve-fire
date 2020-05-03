@@ -69,11 +69,6 @@
         resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db) {:pool (:pool db)})]
     resp))  
 
-(defn get-keys [db read-handlers]
-  (let [resp (fire/read (:db db) (str (:root db) "/keys") (:auth db) {:pool (:pool db)})
-        ans (map #(-> (deserialize % read-handlers) :key) (seq (vals resp)))]
-    ans))
-
 (defn str-uuid [key]
   (str (hasch/uuid key)))
 
