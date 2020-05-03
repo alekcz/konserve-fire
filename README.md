@@ -10,20 +10,20 @@ _Pre-alpha_
 
 ## Prerequisites
 
-For konserve-fire you will need to create a Realtime Database on Firebase and store the service account credentials in the an environment variable. The default variable is `GOOGLE_APPLICATION_CREDENTIALS`
+For konserve-fire you will need to create a Realtime Database on Firebase and store the service account credentials in the an environment variable. The default variable is `GOOGLE_APPLICATION_CREDENTIALS`. I personally prefer `FIRE`, it's shorter to type.
 
 ## Usage
 
 [![Clojars Project](https://img.shields.io/clojars/v/alekcz/konserve-fire.svg)](https://clojars.org/alekcz/konserve-fire)
 
-`[alekcz/konserve-fire "0.2.0"]`
+`[alekcz/konserve-fire "0.2.1"]`
 
 ```clojure
 (require '[konserve-fire.core :refer :all]
          '[clojure.core.async :refer [<!!] :as async]
          '[konserve.core :as k])
   
-  (def fire-store (<!! (new-fire-store "db-name" :env "GOOGLE_APPLICATION_CREDENTIALS" :root "/konserve")))
+  (def fire-store (<!! (new-fire-store "FIRE" :root "/konserve")))
 
   (<!! (k/exists? fire-store  "cecilia"))
   (<!! (k/get-in fire-store ["cecilia"]))
