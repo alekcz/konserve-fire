@@ -6,9 +6,9 @@
             [malli.generator :as mg])
   (:import [clojure.lang ExceptionInfo]))
 
-(deftest fire-store-test
+(deftest core-test
   (testing "Test the core API."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test-old/t1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (is (= (<!! (k/get-in store [:foo]))
              nil))
       (is (= (<!! (k/get-in store [:foo nil]))
@@ -41,11 +41,12 @@
       (<!! (k/dissoc store :foo))
       (is (= (<!! (k/get-in store [:foo]))
              nil))
-      (delete-store store))))
+      ;(delete-store store)
+      )))
 
 (deftest append-store-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t2-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test-old/t2-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (<!! (k/append store :foo {:bar 42}))
       (<!! (k/append store :foo {:bar 43}))
       (is (= (<!! (k/log store :foo))
@@ -60,7 +61,7 @@
 
 (deftest invalid-store-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env "DOES_NOT_EXIST"))]
+    (let [store (<!! (new-fire-store "DOES_NOT_EXIST"))]
       (is (= ExceptionInfo (type store))))))
 
 (def home
@@ -77,7 +78,7 @@
 
 (deftest realistic-test
   (testing "Realistic data test."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test-old/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
           home (mg/generate home {:size 1000 :seed 2})
           address (:address home)
           addressless (dissoc home :address)
@@ -106,7 +107,7 @@
 
 (deftest exceptions-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test-old/t4-" (+ 1 (rand-int 200) (rand-int 1100)))))
           corrupt (assoc-in store [:db :db] "123")]
       (is (= ExceptionInfo (type (<!! (k/update-in store {} 10)))))
       (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
@@ -120,7 +121,7 @@
 
 (deftest bulk-test
   (testing "Bulk data test."
-    (let [store (<!! (new-fire-store "alekcz-dev" :env :fire :root (str "/konserve-test/bulk-test")))
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test-old/bulk-test")))
           h (str (vec (take (* 10 1024 1024) (range))))]
       (is (= ExceptionInfo (type (<!! (k/assoc store "record" h)))))
       (delete-store store))))  
