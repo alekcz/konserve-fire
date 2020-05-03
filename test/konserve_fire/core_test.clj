@@ -1,6 +1,6 @@
 (ns konserve-fire.core-test
-  (:require [clojure.test :refer :all]
-            [clojure.core.async :refer [<!! thread] :as async]
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.core.async :refer [<!!] :as async]
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
             [malli.generator :as mg])
