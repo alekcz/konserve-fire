@@ -14,14 +14,13 @@
             [fire.auth :as fire-auth]
             [fire.core :as fire]
             [clojure.string :as str])
-  (:import  [java.util Base64]
+  (:import  [java.util Base64 Base64$Decoder Base64$Encoder]
             [java.io ByteArrayInputStream]))
 
 (set! *warn-on-reflection* 1)
 
-(def maxi (* 9.5 1024 1024))
-(def b64encoder (. Base64 getEncoder))
-(def b64decoder (. Base64 getDecoder))
+(def ^Base64$Encoder b64encoder (. Base64 getEncoder))
+(def ^Base64$Decoder b64decoder (. Base64 getDecoder))
 
 (defn chunk-str [string]
   (let [chunks (str/split string #"(?<=\G.{5000000})")

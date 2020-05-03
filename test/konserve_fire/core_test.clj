@@ -13,6 +13,9 @@
              nil))
       (is (not (<!! (k/exists? store :foo))))      
       (is (= nil (<!! (k/get-meta store :foo))))
+      (<!! (k/bget store :foo 
+        (fn [{:keys [input-stream]}] 
+          (is (nil? input-stream))))) 
       (<!! (k/assoc store :foo :bar))
       (is (= (<!! (k/get store :foo))
              :bar))
@@ -114,13 +117,15 @@
   (testing "Bulk data test."
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
           string20MB (apply str (vec (range 3000000)))
-          range20MB 20971520]
+          range2MB 2097152]
+      (print "20MB string: ")
       (time (<!! (k/assoc store :record string20MB)))
       (is (= (count string20MB) (count (<!! (k/get store :record)))))
-      (time (<!! (k/bassoc store :binary (byte-array (repeat range20MB 7)))))
+      (print "2MB binary: ")
+      (time (<!! (k/bassoc store :binary (byte-array (repeat range2MB 7)))))
       (<!! (k/bget store :binary (fn [{:keys [input-stream]}]
                                     (is (= (map byte (slurp input-stream))
-                                           (repeat range20MB 7))))))
+                                           (repeat range2MB 7))))))
       (delete-store store))))  
 
     
