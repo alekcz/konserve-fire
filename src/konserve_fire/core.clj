@@ -55,9 +55,7 @@
     (some? resp)))
 
 (defn get-item [db id read-handlers]
-  (let [resp (fire/read (:db db) (str (:root db) "/data/" id "/data") (:auth db) {:pool (:pool db)})
-        v (deserialize resp read-handlers)]
-    (println v)
+  (let [resp (fire/read (:db db) (str (:root db) "/data/" id "/data") (:auth db) {:pool (:pool db)})]
     (deserialize resp read-handlers)))
 
 (defn update-item [db id data read-handlers binary?]
