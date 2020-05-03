@@ -10,26 +10,36 @@
                                         -keys]]
             [incognito.edn :refer [read-string-safe]]
             [fire.auth :as fire-auth]
-            [fire.core :as fire]))
+            [fire.core :as fire]
+            [clojure.string :as str]))
 
 (set! *warn-on-reflection* 1)
 
 (def maxi (* 9.5 1024 1024))
 
+(defn chunk-str [string]
+  (let [chunks (str/split string #"(?<=\G.{5000000})")
+        chunk-map (for [n (range (count chunks))] 
+                    {(str "p" n) (nth chunks n)})]
+    (apply merge {} chunk-map)))
+
 (defn serialize [id data]
-  (let [serialized (-> data second pr-str)]
-    (if (> (count serialized) maxi) 
-      (throw (ex-info "Maximum size exceeded" {:cause "Value in kv-pair must be less than 10MB when serialized. 
-                                                        See firebase limits."}))
-      (let [k {:d (-> data first pr-str)}
-            v {:meta {:d (-> data first pr-str)}
-              :data {:d (-> data second pr-str)}}]
-          {(str "/keys/" id) k (str "/data/" id) v}))))
+  (let [k {:d (-> data first pr-str)}
+        v {:meta {:d (-> data first pr-str)
+                  :type "meta"}
+           :data {:d (-> data second pr-str chunk-str)
+                  :type "data"}}]
+    {(str "/keys/" id) k (str "/data/" id) v}))
 
 (defn deserialize [data' read-handlers]
-  (read-string-safe @read-handlers (:d data')))
+  (if (= "data" (:type data'))
+    (let [joined (-> data' :d vals vec str/join)]
+      ;(println (:type data') data')
+      (read-string-safe @read-handlers joined))
+    (do
+      ;(println (:type data') data')
+      (read-string-safe @read-handlers (:d data')))))
     
-
 (defn item-exists? [db id]
   (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db) {:query {:shallow true} :pool (:pool db)})]
     (some? resp)))
@@ -64,8 +74,8 @@
 (defn str-uuid [key]
   (str (hasch/uuid key)))
 
-(defn prep-ex [^Exception e]
-  (ex-info (.getMessage e) {:cause (.getCause e) :trace (.getStackTrace e)}))
+(defn prep-ex [^String message ^Exception e]
+  (ex-info message {:error (.getMessage e) :cause (.getCause e) :trace (.getStackTrace e)}))
 
 (defrecord FireStore [state read-handlers write-handlers locks]
   PEDNAsyncKeyValueStore
@@ -74,7 +84,7 @@
       (async/thread
         (try
           (async/put! res-ch (item-exists? state (str-uuid key)))
-          (catch Exception e (async/put! res-ch (prep-ex e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to determine if item exists" e)))))
       res-ch))
 
   (-get [this key] 
@@ -85,7 +95,7 @@
             (if (some? res) 
               (async/put! res-ch res)
               (async/close! res-ch)))
-          (catch Exception e (async/put! res-ch (prep-ex e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve value from store" e)))))
       res-ch))
 
   (-get-meta [this key] 
@@ -96,13 +106,13 @@
             (if (some? res) 
               (async/put! res-ch res)
               (async/close! res-ch)))
-          (catch Exception e (async/put! res-ch (prep-ex e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve value metadata from store" e)))))
       res-ch))
 
   (-update-in [this key-vec meta-up-fn up-fn args]
      (let [res-ch (async/chan 1)]
-      (async/thread
-        (try
+      ;(async/thread
+        ;(try
           (let [[fkey & rkey] key-vec
                 old-val (get-item state (str-uuid fkey) read-handlers)
                 updated-val (update-item 
@@ -111,8 +121,8 @@
                               (let [[meta data] old-val]
                                 [(meta-up-fn meta) (if rkey (apply update-in data rkey up-fn args) (apply up-fn data args))])
                               read-handlers)]
-              (async/put! res-ch [(second old-val) (second updated-val)]))
-          (catch Exception e (async/put! res-ch (prep-ex e)))))
+            (async/put! res-ch [(second old-val) (second updated-val)]))
+         ; (catch Exception e (async/put! res-ch (prep-ex "Failed to update or write value in store" e))));)
         res-ch))
 
   (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
@@ -123,7 +133,7 @@
         (try
           (delete-item state (str-uuid key))
           (async/close! res-ch)
-          (catch Exception e (async/put! res-ch (prep-ex e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to delete key-value pair from store" e)))))
         res-ch))
 
   PKeyIterable
@@ -136,7 +146,7 @@
               #(async/put! res-ch %)
               (get-keys state read-handlers)))
           (async/close! res-ch)
-          (catch Exception e (async/put! res-ch (prep-ex e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve keys from store" e)))))
         res-ch)))
 
 (defn new-fire-store
@@ -156,7 +166,7 @@
                                 :read-handlers read-handlers
                                 :write-handlers write-handlers
                                 :locks (atom {})})))
-          (catch Exception e (async/put! res-ch (prep-ex e)))))          
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to connect to store" e)))))          
         res-ch))
 
 (defn delete-store [store]
@@ -165,6 +175,6 @@
       (try
         (let [state (:state store)]
           (fire/delete! (:db state) (str (:root state)) (:auth state)))
-        (catch Exception e (async/put! res-ch (prep-ex e)))))          
+        (catch Exception e (async/put! res-ch (prep-ex "Failed to delete store" e)))))          
         res-ch))
 

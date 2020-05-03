@@ -111,7 +111,8 @@
   (testing "Bulk data test."
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
           size20MB (apply str (vec (range 3000000)))]
-      (is (= ExceptionInfo (type (<!! (k/assoc store :record size20MB)))))
+      (time (<!! (k/assoc store :record size20MB)))
+      (is (= (count size20MB) (count (<!! (k/get store :record)))))
       (delete-store store))))  
 
     
