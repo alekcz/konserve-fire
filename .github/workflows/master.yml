@@ -16,5 +16,7 @@ jobs:
         FIRE: ${{ secrets.FIRE }}
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       run: |
+        lein voom build-deps
+        lein voom install
         lein cloverage --codecov
         bash <(curl -s https://codecov.io/bash)

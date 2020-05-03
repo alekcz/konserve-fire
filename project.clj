@@ -5,10 +5,10 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :aot :all
   :dependencies [[org.clojure/clojure "1.10.0"]
-                 [io.replikativ/konserve "0.6.0"]
-                 [org.clojure/data.codec "0.1.1"]
                  [alekcz/fire "0.2.4"]
+                 ^{:voom {:repo "https://github.com/ring-clojure/ring" :branch "feature_metadata_support"}};-20200427_-4fac6a9
+                 [io.replikativ/konserve "0.6.0-SNAPSHOT"]
                  [io.replikativ/incognito "0.2.5"]]
   :repl-options {:init-ns konserve-fire.core}
-  :plugins [[lein-cloverage "1.1.2"]]
+  :plugins [[lein-cloverage "1.1.2"] [lein-voom "0.1.0-20190525_204305-g28f604d"]]
   :profiles { :dev {:dependencies [[metosin/malli "0.0.1-20200404.091302-14"]]}})
