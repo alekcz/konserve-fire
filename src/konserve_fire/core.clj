@@ -18,13 +18,13 @@
 
 (defn serialize [id data]
   (let [serialized (-> data second pr-str)]
-    (while (> (count serialized) maxi) 
+    (if (> (count serialized) maxi) 
       (throw (ex-info "Maximum size exceeded" {:cause "Value in kv-pair must be less than 10MB when serialized. 
-                                                        See firebase limits."})))
-    (let [k {:d (-> data first pr-str)}
-          v {:meta {:d (-> data first pr-str)}
-             :data {:d (-> data second pr-str)}}]
-        {(str "/keys/" id) k (str "/data/" id) v})))
+                                                        See firebase limits."}))
+      (let [k {:d (-> data first pr-str)}
+            v {:meta {:d (-> data first pr-str)}
+              :data {:d (-> data second pr-str)}}]
+          {(str "/keys/" id) k (str "/data/" id) v}))))
 
 (defn deserialize [data' read-handlers]
   (read-string-safe @read-handlers (:d data')))
@@ -52,7 +52,7 @@
     [(deserialize (:meta item) read-handlers) (deserialize (:data item) read-handlers)]))
 
 (defn delete-item [db id]
-  (let [_ (async/go (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db) {:async true :pool (:pool db)}))
+  (let [_ (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db) {:async true :pool (:pool db)})
         resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db) {:pool (:pool db)})]
     resp))  
 

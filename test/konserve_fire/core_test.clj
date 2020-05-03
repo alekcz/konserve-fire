@@ -11,13 +11,15 @@
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/at1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
       (is (= (<!! (k/get store :foo))
              nil))
-      (is (not (<!! (k/exists? store :foo))))             
+      (is (not (<!! (k/exists? store :foo))))      
+      (is (= nil (<!! (k/get-meta store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (= (<!! (k/get store :foo))
              :bar))
       (is (<!! (k/exists? store :foo)))
       (<!! (k/assoc-in store [:foo] :bar2))
       (is (= :bar2 (<!! (k/get store :foo))))
+      (is (= :foo (:key (<!! (k/get-meta store :foo)))))
       (is (= :default
              (<!! (k/get-in store [:fuu] :default))))
       (is (= :bar2 (<!! (k/get store :foo))))
@@ -110,8 +112,7 @@
     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
           size20MB (apply str (vec (range 3000000)))]
       (is (= ExceptionInfo (type (<!! (k/assoc store :record size20MB)))))
-      (delete-store store)
-      nil)))  
+      (delete-store store))))  
 
     
       
