@@ -105,6 +105,9 @@
           (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve value from store" e)))))
       res-ch))
 
+  (-update-in [this key-vec up-fn] 
+    (-update-in this key-vec up-fn []))
+    
   (-update-in [this key-vec up-fn args]
     (let [res-ch (async/chan 1)]
       (async/thread
