@@ -6,7 +6,7 @@
   :aot :all
   :dependencies [[org.clojure/clojure "1.10.0"]
                  [alekcz/fire "0.2.4"]
-                 ;[io.replikativ/konserve "0.5.1"]
+                 ;[io.replikativ/konserve "0.6.0"]
                  [io.replikativ/incognito "0.2.5"]]
   :repl-options {:init-ns konserve-fire.core}
   :plugins [[lein-cloverage "1.1.2"] [lein-git-deps "0.0.2"]]
