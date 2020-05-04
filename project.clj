@@ -1,4 +1,4 @@
-(defproject alekcz/konserve-fire "0.3.0"
+(defproject alekcz/konserve-fire "0.3.0-SNAPSHOT"
   :description "A Firebase backend for konserve."
   :url "https://github.com/alekcz/konserve-fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
