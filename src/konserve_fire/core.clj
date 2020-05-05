@@ -21,9 +21,12 @@
 (def ^Base64$Decoder b64decoder (. Base64 getDecoder))
 
 (defn chunk-str [string]
-  (let [chunks (str/split string #"(?<=\G.{5000000})")
-        chunk-map (for [n (range (count chunks))] 
-                    {(str "p" n) (nth chunks n)})]
+  (let [len (count string)
+        chunk-map  (if (> len 5000000) 
+                      (let [chunks (str/split string #"(?<=\G.{5000000})")]
+                        (for [n (range (count chunks))] 
+                          {(str "p" n) (nth chunks n)}))
+                      {:p0 string})]
     (apply merge {} chunk-map)))
 
 (defn serialize [id data]
@@ -36,7 +39,7 @@
   (let [finaldata (.encodeToString b64encoder ^"[B" data)
         k {:d true}
         v {:data {:d (-> finaldata pr-str chunk-str)
-                  :type "binary"}}]
+                  :type "binary"}}] 
     {(str "/keys/" id) k (str "/data/" id) v}))
 
 (defn deserialize [data' read-handlers]
@@ -51,22 +54,22 @@
     (read-string-safe @read-handlers (:d data'))))
     
 (defn item-exists? [db id]
-  (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db) {:query {:shallow true} :pool (:pool db)})]
+  (let [resp (fire/read (:db db) (str (:root db) "/data/" id) (:auth db) {:query {:shallow true}})]
     (some? resp)))
 
 (defn get-item [db id read-handlers]
-  (let [resp (fire/read (:db db) (str (:root db) "/data/" id "/data") (:auth db) {:pool (:pool db)})]
+  (let [resp (fire/read (:db db) (str (:root db) "/data/" id "/data") (:auth db))]
     (deserialize resp read-handlers)))
 
 (defn update-item [db id data read-handlers binary?]
   (let [serialized (if-not binary? (serialize id data) (bserialize id data))
-        resp (fire/update! (:db db) (str (:root db)) serialized (:auth db) {:pool (:pool db)})
+        resp (fire/update! (:db db) (str (:root db)) serialized (:auth db))
         item (-> resp :data vals first)]
     (deserialize (:data item) read-handlers)))
 
 (defn delete-item [db id]
-  (let [_ (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db) {:async true :pool (:pool db)})
-        resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db) {:pool (:pool db)})]
+  (let [_ (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db) {:async true})
+        resp (fire/delete! (:db db) (str (:root db) "/data/" id) (:auth db))]
     resp))  
 
 (defn str-uuid [key]
@@ -154,17 +157,19 @@
 
 (defn new-fire-store
   "Creates an new store based on Firebase's realtime database."
-  [env & {:keys [root read-handlers write-handlers]
+  [env & {:keys [root db read-handlers write-handlers]
           :or  {root "/konserve-fire"
+                db nil
                 read-handlers (atom {})
                 write-handlers (atom {})}}]
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
           (let [auth (fire-auth/create-token env)
-                pool (fire/connection-pool 100)]
+                _ (println db)
+                final-db (if (nil? db) (:project-id auth) db)]
             (async/put! res-ch
-              (map->FireStore { :state {:db (:project-id auth) :auth auth :root root :pool pool}
+              (map->FireStore { :state {:db final-db :auth auth :root root}
                                 :serializer (ser/string-serializer)
                                 :read-handlers read-handlers
                                 :write-handlers write-handlers

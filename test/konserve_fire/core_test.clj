@@ -108,20 +108,20 @@
       
       (delete-store store))))     
 
-; (deftest bulk-test
-;   (testing "Bulk data test."
-;     (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
-;           string20MB (apply str (vec (range 3000000)))
-;           range2MB 2097152]
-;       (print "20MB string: ")
-;       (time (<!! (k/assoc store :record string20MB)))
-;       (is (= (count string20MB) (count (<!! (k/get store :record)))))
-;       (print "2MB binary: ")
-;       (time (<!! (k/bassoc store :binary (byte-array (repeat range2MB 7)))))
-;       (<!! (k/bget store :binary (fn [{:keys [input-stream]}]
-;                                     (is (= (map byte (slurp input-stream))
-;                                            (repeat range2MB 7))))))
-;       (delete-store store))))  
+(deftest bulk-test
+  (testing "Bulk data test."
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
+          string20MB (apply str (vec (range 3000000)))
+          range2MB 2097152]
+      (print "20MB string: ")
+      (time (<!! (k/assoc store :record string20MB)))
+      (is (= (count string20MB) (count (<!! (k/get store :record)))))
+      (print "2MB binary: ")
+      (time (<!! (k/bassoc store :binary (byte-array (repeat range2MB 7)))))
+      (<!! (k/bget store :binary (fn [{:keys [input-stream]}]
+                                    (is (= (map byte (slurp input-stream))
+                                           (repeat range2MB 7))))))
+      (delete-store store))))  
 
     
       
