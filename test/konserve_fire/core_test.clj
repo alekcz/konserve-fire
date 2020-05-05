@@ -3,16 +3,19 @@
             [clojure.core.async :refer [<!!] :as async]
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
-            [malli.generator :as mg])
+            [malli.generator :as mg]
+            [fire.auth :as auth])
   (:import [clojure.lang ExceptionInfo]))
 
 (deftest core-test
   (testing "Test the core API."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test-old/t1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test-old/t1")))]
       (is (= (<!! (k/get-in store [:foo]))
              nil))
       (is (= (<!! (k/get-in store [:foo nil]))
              nil))
+      (<!! (k/bget store :binbar (fn [{:keys [input-stream]}]
+                                   (is (nil? input-stream)))))
       (is (false? (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (= (<!! (k/get store :foo))
@@ -110,7 +113,9 @@
 
 (deftest bulk-test
   (testing "Bulk data test."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
+    (let [dbname (:project-id (auth/create-token "FIRE"))
+          db (str "https://" dbname ".firebaseio.com")
+          store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test") :db db))
           string20MB (apply str (vec (range 3000000)))
           range2MB 2097152]
       (print "20MB string: ")

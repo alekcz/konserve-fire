@@ -166,7 +166,6 @@
       (async/thread
         (try
           (let [auth (fire-auth/create-token env)
-                _ (println db)
                 final-db (if (nil? db) (:project-id auth) db)]
             (async/put! res-ch
               (map->FireStore { :state {:db final-db :auth auth :root root}
