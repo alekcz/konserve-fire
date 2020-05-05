@@ -23,9 +23,12 @@
 (def ^Base64$Decoder b64decoder (. Base64 getDecoder))
 
 (defn chunk-str [string]
-  (let [chunks (str/split string #"(?<=\G.{5000000})")
-        chunk-map (for [n (range (count chunks))] 
-                    {(str "p" n) (nth chunks n)})]
+  (let [len (count string)
+        chunk-map  (if (> len 5000000) 
+                      (let [chunks (str/split string #"(?<=\G.{5000000})")]
+                        (for [n (range (count chunks))] 
+                          {(str "p" n) (nth chunks n)}))
+                      {:p0 string})]
     (apply merge {} chunk-map)))
 
 (defn serialize [id data]
@@ -200,17 +203,18 @@
 
 (defn new-fire-store
   "Creates an new store based on Firebase's realtime database."
-  [env & {:keys [root read-handlers write-handlers]
+  [env & {:keys [root db read-handlers write-handlers]
           :or  {root "/konserve-fire"
+                db nil
                 read-handlers (atom {})
                 write-handlers (atom {})}}]
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
           (let [auth (fire-auth/create-token env)
-                pool (fire/connection-pool 100)]
+                final-db (if (nil? db) (:project-id auth) db)]
             (async/put! res-ch
-              (map->FireStore { :state {:db (:project-id auth) :auth auth :root root :pool pool}
+              (map->FireStore { :state {:db final-db :auth auth :root root}
                                 :serializer (ser/string-serializer)
                                 :read-handlers read-handlers
                                 :write-handlers write-handlers

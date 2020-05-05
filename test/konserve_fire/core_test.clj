@@ -3,12 +3,13 @@
             [clojure.core.async :refer [<!!] :as async]
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
-            [malli.generator :as mg])
+            [malli.generator :as mg]
+            [fire.auth :as auth])
   (:import  [clojure.lang ExceptionInfo]))
 
 (deftest core-test
   (testing "Test the core API."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/at1-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t1")))]
       (is (= (<!! (k/get store :foo))
              nil))
       (is (not (<!! (k/exists? store :foo))))      
@@ -54,7 +55,7 @@
 
 (deftest append-store-test
   (testing "Test the append store functionality."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t2-" (+ 1 (rand-int 200) (rand-int 1100)))))]
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t2")))]
       (<!! (k/append store :foo {:bar 42}))
       (<!! (k/append store :foo {:bar 43}))
       (is (= (<!! (k/log store :foo))
@@ -86,7 +87,7 @@
 
 (deftest realistic-test
   (testing "Realistic data test."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t3-" (+ 1 (rand-int 200) (rand-int 1100)))))
+    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/t3")))
           home (mg/generate home {:size 20 :seed 2})
           address (:address home)
           addressless (dissoc home :address)
@@ -115,7 +116,9 @@
 
 (deftest bulk-test
   (testing "Bulk data test."
-    (let [store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test")))
+    (let [dbname (:project-id (auth/create-token "FIRE"))
+          db (str "https://" dbname ".firebaseio.com")
+          store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test") :db db))
           string20MB (apply str (vec (range 3000000)))
           range2MB 2097152]
       (print "20MB string: ")
@@ -127,6 +130,5 @@
                                     (is (= (map byte (slurp input-stream))
                                            (repeat range2MB 7))))))
       (delete-store store))))  
-
     
       
