@@ -15,6 +15,7 @@ jobs:
       env:
         FIRE: ${{ secrets.FIRE }}
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        _JAVA_OPTIONS: -Xmx5g
       run: |
         lein cloverage --codecov
         bash <(curl -s https://codecov.io/bash)

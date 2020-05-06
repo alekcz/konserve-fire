@@ -122,16 +122,17 @@
     (let [dbname (:project-id (auth/create-token "FIRE"))
           db (str "https://" dbname ".firebaseio.com")
           store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test") :db db))
-          string20MB (apply str (vec (range 3000000)))
-          range20MB 20971520]
-      (print "20MB string: ")
-      (time (<!! (k/assoc store :record string20MB)))
-      (is (= (count string20MB) (count (<!! (k/get store :record)))))
-      (print "20MB binary: ")
-      (time (<!! (k/bassoc store :binary (byte-array (repeat range20MB 7)))))
+          range2MB 2097152
+          string10MB (apply str (repeat (* 6 range2MB) "a"))
+          sevens (repeat range2MB 7)]
+      (print "2MB string: ")
+      (time (<!! (k/assoc store :record string10MB)))
+      (is (= (count string10MB) (count (<!! (k/get store :record)))))
+      (print "2MB binary: ")
+      (time (<!! (k/bassoc store :binary (byte-array sevens))))
       (<!! (k/bget store :binary (fn [{:keys [input-stream]}]
                                     (is (= (pmap byte (slurp input-stream))
-                                           (repeat range20MB 7))))))
+                                           sevens)))))
       (delete-store store))))  
     
       

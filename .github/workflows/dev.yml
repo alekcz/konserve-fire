@@ -14,5 +14,6 @@ jobs:
     - name: Run tests
       env:
         FIRE: ${{ secrets.FIRE }}
+        _JAVA_OPTIONS: -Xmx5g
       run: |
         lein cloverage
