@@ -32,14 +32,17 @@
       (<!! (k/update-in store [:foo] name))
       (is (= "bar2"
              (<!! (k/get store :foo))))
-      (<!! (k/assoc-in store [:baz] {:bar 42}))
+      (print "Write speed: ")       
+      (time (<!! (k/assoc-in store [:baz] {:bar 42})))
       (is (= (<!! (k/get-in store [:baz :bar]))
              42))
-      (<!! (k/update-in store [:baz :bar] inc))
+      (print "Update speed: ")
+      (time (<!! (k/update-in store [:baz :bar] inc)))
       (is (= (<!! (k/get-in store [:baz :bar]))
              43))
       (<!! (k/update-in store [:baz :bar] + 2 3))
-      (is (= (<!! (k/get-in store [:baz :bar]))
+      (print "Read speed: ")
+      (is (= (time (<!! (k/get-in store [:baz :bar])))
              48))
       (<!! (k/dissoc store :foo))
       (is (= (<!! (k/get-in store [:foo]))
@@ -120,15 +123,15 @@
           db (str "https://" dbname ".firebaseio.com")
           store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test") :db db))
           string20MB (apply str (vec (range 3000000)))
-          range2MB 2097152]
+          range20MB 20971520]
       (print "20MB string: ")
       (time (<!! (k/assoc store :record string20MB)))
       (is (= (count string20MB) (count (<!! (k/get store :record)))))
-      (print "2MB binary: ")
-      (time (<!! (k/bassoc store :binary (byte-array (repeat range2MB 7)))))
+      (print "20MB binary: ")
+      (time (<!! (k/bassoc store :binary (byte-array (repeat range20MB 7)))))
       (<!! (k/bget store :binary (fn [{:keys [input-stream]}]
-                                    (is (= (map byte (slurp input-stream))
-                                           (repeat range2MB 7))))))
+                                    (is (= (pmap byte (slurp input-stream))
+                                           (repeat range20MB 7))))))
       (delete-store store))))  
     
       

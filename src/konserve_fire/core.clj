@@ -95,7 +95,7 @@
   (str (hasch/uuid key)))
 
 (defn prep-stream [bytes]
- {:input-stream  (ByteArrayInputStream. bytes):size (count bytes)})
+ {:input-stream  (ByteArrayInputStream. bytes) :size (count bytes)})
 
 (defn prep-ex [^String message ^Exception e]
   (ex-info message {:error (.getMessage e) :cause (.getCause e) :trace (.getStackTrace e)}))
