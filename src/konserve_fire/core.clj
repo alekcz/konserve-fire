@@ -61,11 +61,9 @@
   (let [resp (fire/read (:db db) (str (:root db) "/data/" id "/data") (:auth db))]
     (deserialize resp read-handlers)))
 
-(defn update-item [db id data read-handlers binary?]
-  (let [serialized (if-not binary? (serialize id data) (bserialize id data))
-        resp (fire/update! (:db db) (str (:root db)) serialized (:auth db))
-        item (-> resp :data vals first)]
-    (deserialize (:data item) read-handlers)))
+(defn update-item [db id data binary?]
+  (let [serialized (if-not binary? (serialize id data) (bserialize id data))]
+    (fire/update! (:db db) (str (:root db)) serialized (:auth db) {:print "silent"})))
 
 (defn delete-item [db id]
   (let [_ (fire/delete! (:db db) (str (:root db) "/keys/" id) (:auth db) {:async true})
@@ -114,9 +112,9 @@
                 [fkey & rkey] key-vec
                 id (str-uuid fkey)
                 old (get-item state id read-handlers)
-                new-data (if (empty? rkey) (apply up-fn old args) (apply update-in old rkey up-fn args))
-                new (update-item state id new-data read-handlers binary?)]
-            (async/put! res-ch [(get-in old rkey) (get-in new rkey)]))
+                new-data (if (empty? rkey) (apply up-fn old args) (apply update-in old rkey up-fn args))]
+            (update-item state id new-data binary?)    
+            (async/put! res-ch [(get-in old rkey) (get-in new-data rkey)]))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to update or write value in store" e)))))
         res-ch))
 
@@ -149,9 +147,9 @@
         (try
           (let [binary? true
                 id (str-uuid key)
-                old (get-item state id read-handlers)
-                new (update-item state id input read-handlers binary?)]
-            (async/put! res-ch [old new]))
+                old (get-item state id read-handlers)]
+            (update-item state id input read-handlers binary?)    
+            (async/put! res-ch [old input]))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to update or write value in store" e)))))
         res-ch)))
 
