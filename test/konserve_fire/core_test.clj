@@ -128,5 +128,23 @@
                                            (repeat range2MB 7))))))
       (delete-store store))))  
 
+(deftest exceptions-test
+  (testing "Test exception handling"
+    (let [dbname (:project-id (auth/create-token "FIRE"))
+          db (str "https://" dbname ".firebaseio.com")
+          store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test") :db db))
+          corrupt (update-in store [:state] #(dissoc % :auth))
+          _ (println corrupt)
+          ] ; let's corrupt our store
+      (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
+      (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
+      (is (= ExceptionInfo (type (<!! (k/dissoc corrupt :bad)))))
+      (is (= ExceptionInfo (type (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
+      (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
+      (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
+      (is (= ExceptionInfo (type (<!! (k/bget corrupt :bad (fn [_] nil))))))   
+      (is (= ExceptionInfo (type (<!! (k/bassoc corrupt :binbar (byte-array (range 10)))))))   
+      (is (= ExceptionInfo (type (<!! (delete-store corrupt)))))
+      (delete-store store))))
     
       

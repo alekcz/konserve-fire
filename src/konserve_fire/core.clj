@@ -148,7 +148,7 @@
           (let [binary? true
                 id (str-uuid key)
                 old (get-item state id read-handlers)]
-            (update-item state id input read-handlers binary?)    
+            (update-item state id input binary?)    
             (async/put! res-ch [old input]))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to update or write value in store" e)))))
         res-ch)))
