@@ -132,7 +132,7 @@
   (testing "Test exception handling"
     (let [dbname (:project-id (auth/create-token "FIRE"))
           db (str "https://" dbname ".firebaseio.com")
-          store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/bulk-test") :db db))
+          store (<!! (new-fire-store "FIRE" :root (str "/konserve-test/exception-test") :db db))
           corrupt (update-in store [:state] #(dissoc % :auth))
           _ (println corrupt)
           ] ; let's corrupt our store
