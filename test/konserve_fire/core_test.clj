@@ -3,7 +3,8 @@
             [clojure.core.async :refer [<!!] :as async]
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
-            [malli.generator :as mg])
+            [malli.generator :as mg]
+            [fire.auth :as auth])
   (:import  [clojure.lang ExceptionInfo]))
 
 (deftest get-nil-tests
@@ -21,7 +22,9 @@
 (deftest write-value-tests
   (testing "Test writing to store"
     (let [_ (println "Writing to store")
-          store (<!! (new-fire-store :fire :root "/kf-2"))]
+          dbname (:project-id (auth/create-token "FIRE"))
+          db (str "https://" dbname ".firebaseio.com")
+          store (<!! (new-fire-store :fire :root "/kf-2" :db db))]
       (is (not (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (<!! (k/exists? store :foo)))
@@ -34,7 +37,8 @@
 (deftest update-value-tests
   (testing "Test updating values in the store"
     (let [_ (println "Updating values in the store")
-          store (<!! (new-fire-store :fire :root "/kf-3"))]
+          dbname (:project-id (auth/create-token "FIRE"))
+          store (<!! (new-fire-store :fire :root "/kf-3" :db dbname))]
       (<!! (k/assoc store :foo :baritone))
       (is (= :baritone (<!! (k/get-in store [:foo]))))
       (<!! (k/update-in store [:foo] name))
@@ -73,7 +77,7 @@
   (testing "Test getting keys from the store"
     (let [_ (println "Getting keys from store")
           store (<!! (new-fire-store :fire :root "/kf-6"))]
-      ;(is (= #{} (<!! (async/into #{} (k/keys store)))))
+      (is (= #{} (<!! (async/into #{} (k/keys store)))))
       (<!! (k/assoc store :baz 20))
       (<!! (k/assoc store :binbar 20))
       (is (= #{:baz :binbar} (<!! (async/into #{} (k/keys store)))))
@@ -98,8 +102,10 @@
 (deftest invalid-store-test
   (testing "Invalid store functionality."
     (let [_ (println "Connecting to invalid store")
-          store (<!! (new-fire-store "I_DONT_EXIST"))]
-      (is (= ExceptionInfo (type store))))))
+          store (<!! (new-fire-store "I_DONT_EXIST"))
+          store2 (<!! (new-fire-store nil))]
+      (is (= ExceptionInfo (type store)))
+      (is (not= ExceptionInfo (type store2))))))
 
 (def home
   [:map

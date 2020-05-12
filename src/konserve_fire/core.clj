@@ -241,7 +241,8 @@
     (async/thread
       (try
         (let [store (:store fire-store)]
-          (fire/delete! (:db store) (str (:root store)) (:auth store)))
+          (fire/delete! (:db store) (str (:root store)) (:auth store))
+          (async/close! res-ch))
         (catch Exception e (async/put! res-ch (prep-ex "Failed to delete store" e)))))          
         res-ch))
 
