@@ -2,11 +2,18 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.core.async :refer [<!!] :as async]
             [konserve.core :as k]
-            [konserve-fire.core :refer [new-fire-store delete-store]]
+            [konserve-fire.core :refer [new-fire-store delete-store] :as kf]
             [malli.generator :as mg]
+            [hasch.core :as hasch]
             [fire.auth :as fire-auth]
             [fire.core :as fire])
-  (:import  [clojure.lang ExceptionInfo]))
+  (:import  [clojure.lang ExceptionInfo]
+            [java.util Base64 Base64$Decoder]))
+
+(def ^Base64$Decoder b64decoder (. Base64 getDecoder))
+(defn decode-str [string]
+  (.decode b64decoder ^String string))
+
 
 (deftest get-nil-tests
   (testing "Test getting on empty store"
@@ -162,6 +169,58 @@
                                     (is (= (pmap byte (slurp input-stream))
                                            sevens)))))
       (delete-store store))))  
+
+(deftest version-test
+  (testing "Test check for store version being store with data"
+    (let [_ (println "Checking if store version is stored")
+          store (<!! (new-fire-store :fire))
+          fstore (:store store)
+          id (str (hasch/uuid :foo))]
+      (<!! (k/assoc store :foo :bar))
+      (is (= :bar (<!! (k/get store :foo))))
+      (is (= (byte kf/store-version) 
+             (let [res (fire/read (:db fstore) (str (:root fstore) "/" id "/data") (:auth fstore))]
+                (-> res :headers decode-str vec (nth 0)))))         
+      (delete-store store))))
+
+(deftest serializer-test
+  (testing "Test check for serilizer type being store with data"
+    (let [_ (println "Checking if serilizer type is stored")
+          store (<!! (new-fire-store :fire))
+          fstore (:store store)
+          id (str (hasch/uuid :foo))]
+      (<!! (k/assoc store :foo :bar))
+      (is (= :bar (<!! (k/get store :foo))))
+      (is (= (byte kf/serializer) 
+             (let [res (fire/read (:db fstore) (str (:root fstore) "/" id "/data") (:auth fstore))]
+              (-> res :headers decode-str vec (nth 1)))))     
+      (delete-store store))))
+
+(deftest compressor-test
+  (testing "Test check for compressor type being store with data"
+    (let [_ (println "Checking if compressor type is stored")
+          store (<!! (new-fire-store :fire))
+          fstore (:store store)
+          id (str (hasch/uuid :foo))]
+      (<!! (k/assoc store :foo :bar))
+      (is (= :bar (<!! (k/get store :foo))))
+      (is (= (byte kf/compressor) 
+             (let [res (fire/read (:db fstore) (str (:root fstore) "/" id "/data") (:auth fstore))]
+              (-> res :headers decode-str vec (nth 2)))))              
+      (delete-store store))))
+
+(deftest encryptor-test
+  (testing "Test check for encryptor type being store with data"
+    (let [_ (println "Checking if encryptor type is stored")
+          store (<!! (new-fire-store :fire))
+          fstore (:store store)
+          id (str (hasch/uuid :foo))]
+      (<!! (k/assoc store :foo :bar))
+      (is (= :bar (<!! (k/get store :foo))))
+      (is (= (byte kf/encryptor) 
+             (let [res (fire/read (:db fstore) (str (:root fstore) "/" id "/data") (:auth fstore))]
+              (-> res :headers decode-str vec (nth 3)))))          
+      (delete-store store))))       
 
 (deftest exceptions-test
   (testing "Test exception handling"
