@@ -4,13 +4,14 @@
             [konserve.core :as k]
             [konserve-fire.core :refer [new-fire-store delete-store]]
             [malli.generator :as mg]
-            [fire.auth :as auth])
+            [fire.auth :as fire-auth]
+            [fire.core :as fire])
   (:import  [clojure.lang ExceptionInfo]))
 
 (deftest get-nil-tests
   (testing "Test getting on empty store"
     (let [_ (println "Getting from an empty store")
-          store (<!! (new-fire-store :fire :root "/kf-1"))]
+          store (<!! (new-fire-store :fire))]
       (is (= nil (<!! (k/get store :foo))))
       (is (= nil (<!! (k/get-meta store :foo))))
       (is (not (<!! (k/exists? store :foo))))
@@ -22,9 +23,7 @@
 (deftest write-value-tests
   (testing "Test writing to store"
     (let [_ (println "Writing to store")
-          dbname (:project-id (auth/create-token "FIRE"))
-          db (str "https://" dbname ".firebaseio.com")
-          store (<!! (new-fire-store :fire :root "/kf-2" :db db))]
+          store (<!! (new-fire-store :fire))]
       (is (not (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (<!! (k/exists? store :foo)))
@@ -37,8 +36,8 @@
 (deftest update-value-tests
   (testing "Test updating values in the store"
     (let [_ (println "Updating values in the store")
-          dbname (:project-id (auth/create-token "FIRE"))
-          store (<!! (new-fire-store :fire :root "/kf-3" :db dbname))]
+          db  (:project-id (fire-auth/create-token :fire))
+          store (<!! (new-fire-store :fire :db db))]
       (<!! (k/assoc store :foo :baritone))
       (is (= :baritone (<!! (k/get-in store [:foo]))))
       (<!! (k/update-in store [:foo] name))
@@ -48,7 +47,7 @@
 (deftest exists-tests
   (testing "Test check for existing key in the store"
     (let [_ (println "Checking if keys exist")
-          store (<!! (new-fire-store :fire :root "/kf-4"))]
+          store (<!! (new-fire-store :fire))]
       (is (not (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :baritone))
       (is  (<!! (k/exists? store :foo)))
@@ -59,7 +58,7 @@
 (deftest binary-tests
   (testing "Test writing binary date"
     (let [_ (println "Reading and writing binary data")
-          store (<!! (new-fire-store :fire :root "/kf-5"))]
+          store (<!! (new-fire-store :fire))]
       (is (not (<!! (k/exists? store :binbar))))
       (<!! (k/bget store :binbar (fn [ans] (is (nil? ans)))))
       (<!! (k/bassoc store :binbar (byte-array (range 10))))
@@ -76,7 +75,7 @@
 (deftest key-tests
   (testing "Test getting keys from the store"
     (let [_ (println "Getting keys from store")
-          store (<!! (new-fire-store :fire :root "/kf-6"))]
+          store (<!! (new-fire-store :fire))]
       (is (= #{} (<!! (async/into #{} (k/keys store)))))
       (<!! (k/assoc store :baz 20))
       (<!! (k/assoc store :binbar 20))
@@ -86,7 +85,7 @@
 (deftest append-test
   (testing "Test the append store functionality."
     (let [_ (println "Appending to store")
-          store (<!! (new-fire-store :fire :root "/kf-7"))]
+          store (<!! (new-fire-store :fire))]
       (<!! (k/append store :foo {:bar 42}))
       (<!! (k/append store :foo {:bar 43}))
       (is (= (<!! (k/log store :foo))
@@ -102,10 +101,8 @@
 (deftest invalid-store-test
   (testing "Invalid store functionality."
     (let [_ (println "Connecting to invalid store")
-          store (<!! (new-fire-store "I_DONT_EXIST"))
-          store2 (<!! (new-fire-store nil))]
-      (is (= ExceptionInfo (type store)))
-      (is (not= ExceptionInfo (type store2))))))
+          store (<!! (new-fire-store :non-existent-key))]
+      (is (= ExceptionInfo (type store))))))
 
 (def home
   [:map
@@ -122,7 +119,7 @@
 (deftest realistic-test
   (testing "Realistic data test."
     (let [_ (println "Entering realistic data")
-          store (<!! (new-fire-store :fire :root "/kf-8"))
+          store (<!! (new-fire-store :fire))
           home (mg/generate home {:size 20 :seed 2})
           address (:address home)
           addressless (dissoc home :address)
@@ -152,7 +149,7 @@
 (deftest bulk-test
   (testing "Bulk data test."
     (let [_ (println "Writing bulk data")
-          store (<!! (new-fire-store :fire :root "/kf-9"))
+          store (<!! (new-fire-store :fire))
           string20MB (apply str (vec (range 3000000)))
           range2MB 2097152
           sevens (repeat range2MB 7)]
@@ -169,7 +166,7 @@
 (deftest exceptions-test
   (testing "Test exception handling"
     (let [_ (println "Generating exceptions")
-          store (<!! (new-fire-store :fire :root "/kf-10"))
+          store (<!! (new-fire-store :fire))
           corrupt (update-in store [:store] #(dissoc % :auth))] ; let's corrupt our store
       (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
       (is (= ExceptionInfo (type (<!! (k/get-meta corrupt :bad)))))

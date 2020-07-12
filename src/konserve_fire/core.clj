@@ -3,6 +3,9 @@
   (:require [clojure.core.async :as async]
             [konserve.serializers :as ser]
             [hasch.core :as hasch]
+            [fire.auth :as fire-auth]
+            [fire.core :as fire]
+            [clojure.string :as str]
             [konserve.protocols :refer [PEDNAsyncKeyValueStore
                                         -exists? -get -get-meta
                                         -update-in -assoc-in -dissoc
@@ -10,10 +13,7 @@
                                         -bassoc -bget
                                         -serialize -deserialize
                                         PKeyIterable
-                                        -keys]]                                
-            [fire.auth :as fire-auth]
-            [fire.core :as fire]
-            [clojure.string :as str])
+                                        -keys]])
   (:import  [java.io ByteArrayInputStream StringWriter]
             [java.util Base64 Base64$Decoder Base64$Encoder]))
 
@@ -21,6 +21,14 @@
 
 (def ^Base64$Encoder b64encoder (. Base64 getEncoder))
 (def ^Base64$Decoder b64decoder (. Base64 getDecoder))
+(def store-version 1)
+(def serializer 1)
+(def compressor 0)
+(def encryptor 0)
+
+(defn headers []
+  (.encodeToString b64encoder ^"[B" 
+    (byte-array [(byte store-version) (byte serializer) (byte compressor) (byte encryptor)])))
 
 (defn chunk-str [string]
   (let [len (count string)
@@ -28,76 +36,81 @@
                       (let [chunks (str/split string #"(?<=\G.{5000000})")]
                         (for [n (range (count chunks))] 
                           {(str "p" n) (nth chunks n)}))
-                      {:p0 string})]
+                      {:headers (headers)
+                       :p0 string})]
     (apply merge {} chunk-map)))
 
+(defn combine-str [data-str]
+  (->> (dissoc data-str :headers) (into (sorted-map)) vals vec str/join))
+
 (defn prep-write 
-  "Doc string"
   [data]
   (let [[meta val] data]
-    (if (= String (type val))
-      {:data (chunk-str val)
-       :meta meta
-       :type "string"}
-      {:data (chunk-str (.encodeToString b64encoder ^"[B" val))
-       :meta meta
-       :type "binary"})))
+    {:data (chunk-str val)
+     :meta meta
+     :type "string"}))
+
+(defn prep-bwrite 
+  [data]
+  (let [[meta val] data]
+    {:data (chunk-str (.encodeToString b64encoder ^"[B" val))
+     :meta meta
+     :type "binary"}))
 
 (defn prep-read 
-  "Doc string"
   [data']
-  (let [data (doall (-> data' :data vals vec str/join))
-        type (:type data')
-        meta (:meta data')]
+  (let [data (combine-str (:data data'))
+        meta (:meta data')
+        type (:type data')]
     (case type
       "string" [meta data]
       "binary" [meta (.decode b64decoder ^String data)]
       nil)))
 
 (defn it-exists? 
-  "Doc string"
   [store id]
     (let [resp (fire/read (:db store) (str (:root store) "/" id "/data") (:auth store) {:query {:shallow true}})]
     (some? resp)))
   
 (defn get-it 
-  "Doc string"
   [store id]
   (let [resp (fire/read (:db store) (str (:root store) "/" id) (:auth store))]
     (prep-read resp)))
 
+(defn get-meta
+  [store id]
+  (let [resp (fire/read (:db store) (str (:root store) "/" id "/meta") (:auth store))]
+    resp))
+
 (defn update-it 
-  "Doc string"
   [store id data]
   (fire/update! (:db store) (str (:root store) "/" id) (prep-write data) (:auth store) {:print "silent"}))
 
+(defn bupdate-it 
+  [store id data]
+  (fire/update! (:db store) (str (:root store) "/" id) (prep-bwrite data) (:auth store) {:print "silent"}))
+
 (defn delete-it 
-  "Doc string"
   [store id]
   (fire/delete! (:db store) (str (:root store) "/" id) (:auth store)))
 
 (defn get-keys 
-  "Doc string"
   [store]
   (let [resp (fire/read (:db store) (str (:root store)) (:auth store) {:query {:shallow true}})
         key-stream (seq (keys resp))
-        getmeta (fn [id] (fire/read (:db store) (str (:root store) "/" (name id) "/meta") (:auth store)))]
+        getmeta (fn [id] (get-meta store (name id)))]
     (map getmeta key-stream)))
 
 (defn str-uuid 
-  "Doc string"
   [key] 
   (str (hasch/uuid key))) 
 
 (defn prep-ex 
-  "Doc string"
   [^String message ^Exception e]
-  ; Use print the stack trace when things are going wonky
-  ; (.printStackTrace e)
+  ;(.printStackTrace e)
   (ex-info message {:error (.getMessage e) :cause (.getCause e) :trace (.getStackTrace e)}))
 
 (defn prep-stream 
-  "Doc string"
   [bytes]
   { :input-stream  (ByteArrayInputStream. bytes) 
     :size (count bytes)})
@@ -130,9 +143,9 @@
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
-          (let [res (get-it store (str-uuid key))]
+          (let [res (get-meta store (str-uuid key))]
             (if (some? res) 
-              (async/put! res-ch (-deserialize serializer read-handlers (first res)))
+              (async/put! res-ch (-deserialize serializer read-handlers res))
               (async/close! res-ch)))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve value metadata from store" e)))))
       res-ch))
@@ -147,7 +160,7 @@
                 old-val [(when ometa'
                           (-deserialize serializer read-handlers ometa'))
                          (when oval'
-                          (-deserialize serializer read-handlers oval'))]            
+                          (-deserialize serializer read-handlers oval'))] 
                 [nmeta nval] [(meta-up-fn (first old-val)) 
                          (if rkey (apply update-in (second old-val) rkey up-fn args) (apply up-fn (second old-val) args))]
                 ^StringWriter mbaos (StringWriter.)
@@ -159,7 +172,9 @@
           (catch Exception e (async/put! res-ch (prep-ex "Failed to update/write value in store" e)))))
         res-ch))
 
-  (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
+  (-assoc-in 
+    [this key-vec meta nval] 
+    (-update-in this key-vec meta (fn [_] nval) []))
 
   (-dissoc 
     [this key] 
@@ -194,7 +209,7 @@
                 new-meta (meta-up-fn old-meta)
                 ^StringWriter mbaos (StringWriter.)]
             (-serialize serializer mbaos write-handlers new-meta)
-            (update-it store (str-uuid key) [(.toString mbaos) input])
+            (bupdate-it store (str-uuid key) [(.toString mbaos) input])
             (async/put! res-ch [(second old-val) input]))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to update/write binary value in store" e)))))
         res-ch))
@@ -206,15 +221,15 @@
       (async/thread
         (try
           (let [key-stream (get-keys store)
-                key-names (when key-stream
+                keys (when key-stream
                         (for [k key-stream]
                           (:key (-deserialize serializer read-handlers k))))]
             (doall
-              (map #(async/put! res-ch %) key-names)))
+              (map #(async/put! res-ch %) keys)))
           (async/close! res-ch) 
           (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve keys from store" e)))))
         res-ch)))
-  
+
 (defn new-fire-store
   "Creates an new store based on Firebase's realtime database."
   [env & {:keys [root db read-handlers write-handlers]
@@ -245,4 +260,3 @@
           (async/close! res-ch))
         (catch Exception e (async/put! res-ch (prep-ex "Failed to delete store" e)))))          
         res-ch))
-
