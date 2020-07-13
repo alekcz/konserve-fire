@@ -241,9 +241,10 @@
       (async/thread
         (try
           (let [auth (fire-auth/create-token env)
-                final-db (if (nil? db) (:project-id auth) db)]
+                final-db (if (nil? db) (:project-id auth) db)
+                final-root (if (str/starts-with? root "/") root (str "/" root))]
             (async/put! res-ch
-              (map->FireStore { :store {:db final-db :auth auth :root root}
+              (map->FireStore { :store {:db final-db :auth auth :root final-root}
                                 :serializer (ser/string-serializer)
                                 :read-handlers read-handlers
                                 :write-handlers write-handlers
