@@ -240,7 +240,7 @@
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
-          (let [auth (fire-auth/create-token env)
+          (let [auth (when env (fire-auth/create-token env))
                 final-db (if (nil? db) (:project-id auth) db)
                 final-root (if (str/starts-with? root "/") root (str "/" root))]
             (async/put! res-ch
