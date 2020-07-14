@@ -18,7 +18,7 @@
 (deftest get-nil-tests
   (testing "Test getting on empty store"
     (let [_ (println "Getting from an empty store")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))]
+          store (<!! (new-fire-store :fire))]
       (is (= nil (<!! (k/get store :foo))))
       (is (= nil (<!! (k/get-meta store :foo))))
       (is (not (<!! (k/exists? store :foo))))
@@ -30,7 +30,9 @@
 (deftest write-value-tests
   (testing "Test writing to store"
     (let [_ (println "Writing to store")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))]
+          auth (fire-auth/create-token :fire)
+          db (str "https://" (:project-id auth) ".firebaseio.com")
+          store (<!! (new-fire-store :fire :db db))]
       (is (not (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (<!! (k/exists? store :foo)))
@@ -43,40 +45,17 @@
 (deftest update-value-tests
   (testing "Test updating values in the store"
     (let [_ (println "Updating values in the store")
-          store (<!! (new-fire-store nil :db "http://localhost:9000" :root "updates"))]
+          store (<!! (new-fire-store :fire :root "updates"))]
       (<!! (k/assoc store :foo :baritone))
       (is (= :baritone (<!! (k/get-in store [:foo]))))
       (<!! (k/update-in store [:foo] name))
       (is (= "baritone" (<!! (k/get-in store [:foo]))))
       (delete-store store))))      
 
-(deftest update-value-tests-with-auth
-  (testing "Test updating values in the store"
-    (let [_ (println "Updating values in the store")
-          store (<!! (new-fire-store :fire))]
-      (<!! (k/assoc store :foo :baritone))
-      (is (= :baritone (<!! (k/get-in store [:foo]))))
-      (<!! (k/update-in store [:foo] name))
-      (is (= "baritone" (<!! (k/get-in store [:foo]))))
-      (delete-store store))))
-
-(deftest write-value-tests-with-auth
-  (testing "Test writing to store"
-    (let [_ (println "Writing to store")
-          store (<!! (new-fire-store :fire  :root "updates"))]
-      (is (not (<!! (k/exists? store :foo))))
-      (<!! (k/assoc store :foo :bar))
-      (is (<!! (k/exists? store :foo)))
-      (is (= :bar (<!! (k/get store :foo))))
-      (is (= :foo (:key (<!! (k/get-meta store :foo)))))
-      (<!! (k/assoc-in store [:baz] {:bar 42}))
-      (is (= 42 (<!! (k/get-in store [:baz :bar]))))
-      (delete-store store))))    
-
 (deftest exists-tests
   (testing "Test check for existing key in the store"
     (let [_ (println "Checking if keys exist")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))]
+          store (<!! (new-fire-store :fire))]
       (is (not (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :baritone))
       (is  (<!! (k/exists? store :foo)))
@@ -87,7 +66,7 @@
 (deftest binary-tests
   (testing "Test writing binary date"
     (let [_ (println "Reading and writing binary data")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))]
+          store (<!! (new-fire-store :fire))]
       (is (not (<!! (k/exists? store :binbar))))
       (<!! (k/bget store :binbar (fn [ans] (is (nil? ans)))))
       (<!! (k/bassoc store :binbar (byte-array (range 10))))
@@ -104,7 +83,7 @@
 (deftest key-tests
   (testing "Test getting keys from the store"
     (let [_ (println "Getting keys from store")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))]
+          store (<!! (new-fire-store :fire))]
       (is (= #{} (<!! (async/into #{} (k/keys store)))))
       (<!! (k/assoc store :baz 20))
       (<!! (k/assoc store :binbar 20))
@@ -114,7 +93,7 @@
 (deftest append-test
   (testing "Test the append store functionality."
     (let [_ (println "Appending to store")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))]
+          store (<!! (new-fire-store :fire))]
       (<!! (k/append store :foo {:bar 42}))
       (<!! (k/append store :foo {:bar 43}))
       (is (= (<!! (k/log store :foo))
@@ -148,7 +127,7 @@
 (deftest realistic-test
   (testing "Realistic data test."
     (let [_ (println "Entering realistic data")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))
+          store (<!! (new-fire-store :fire))
           home (mg/generate home {:size 20 :seed 2})
           address (:address home)
           addressless (dissoc home :address)
@@ -178,7 +157,7 @@
 (deftest bulk-test
   (testing "Bulk data test."
     (let [_ (println "Writing bulk data")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))
+          store (<!! (new-fire-store :fire))
           string20MB (apply str (vec (range 3000000)))
           range2MB 2097152
           sevens (repeat range2MB 7)]
@@ -195,7 +174,7 @@
 (deftest version-test
   (testing "Test check for store version being store with data"
     (let [_ (println "Checking if store version is stored")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))
+          store (<!! (new-fire-store :fire))
           fstore (:store store)
           id (str (hasch/uuid :foo))]
       (<!! (k/assoc store :foo :bar))
@@ -208,7 +187,7 @@
 (deftest serializer-test
   (testing "Test check for serilizer type being store with data"
     (let [_ (println "Checking if serilizer type is stored")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))
+          store (<!! (new-fire-store :fire))
           fstore (:store store)
           id (str (hasch/uuid :foo))]
       (<!! (k/assoc store :foo :bar))
@@ -221,7 +200,7 @@
 (deftest compressor-test
   (testing "Test check for compressor type being store with data"
     (let [_ (println "Checking if compressor type is stored")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))
+          store (<!! (new-fire-store :fire))
           fstore (:store store)
           id (str (hasch/uuid :foo))]
       (<!! (k/assoc store :foo :bar))
@@ -234,7 +213,7 @@
 (deftest encryptor-test
   (testing "Test check for encryptor type being store with data"
     (let [_ (println "Checking if encryptor type is stored")
-          store (<!! (new-fire-store nil :db "http://localhost:9000"))
+          store (<!! (new-fire-store :fire))
           fstore (:store store)
           id (str (hasch/uuid :foo))]
       (<!! (k/assoc store :foo :bar))
@@ -247,7 +226,7 @@
 (deftest exceptions-test
   (testing "Test exception handling"
     (let [_ (println "Generating exceptions")
-          store (<!! (new-fire-store nil :db 2000))
+          store (<!! (new-fire-store :fire))
           corrupt (update-in store [:store] #(assoc % :auth {:not "empty"}))] ; let's corrupt our store
       (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
       (is (= ExceptionInfo (type (<!! (k/get-meta corrupt :bad)))))
