@@ -2,23 +2,22 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.core.async :refer [<!!] :as async]
             [konserve.core :as k]
-            [konserve-fire.core :refer [new-fire-store delete-store] :as kf]
+            [konserve.storage-layout :as kl]
+            [konserve-fire.core :refer [new-fire-store delete-store]]
             [malli.generator :as mg]
-            [hasch.core :as hasch]
-            [fire.auth :as fire-auth]
-            [fire.core :as fire])
-  (:import  [clojure.lang ExceptionInfo]
-            [java.util Base64 Base64$Decoder]))
+            [fire.auth :as fire-auth]))
 
-(def ^Base64$Decoder b64decoder (. Base64 getDecoder))
-(defn decode-str [string]
-  (.decode b64decoder ^String string))
-
+(deftype UnknownType [])
+(defn exception? [thing]
+  (let [ex (type thing)]
+    (or (= clojure.lang.ExceptionInfo ex) 
+        (= java.lang.Exception ex) 
+        (= java.lang.Throwable ex))))
 
 (deftest get-nil-tests
   (testing "Test getting on empty store"
     (let [_ (println "Getting from an empty store")
-          store (<!! (new-fire-store :fire))]
+          store (<!! (new-fire-store :fire :root "konserve-nil-test"))]
       (is (= nil (<!! (k/get store :foo))))
       (is (= nil (<!! (k/get-meta store :foo))))
       (is (not (<!! (k/exists? store :foo))))
@@ -32,7 +31,7 @@
     (let [_ (println "Writing to store")
           auth (fire-auth/create-token :fire)
           db (str "https://" (:project-id auth) ".firebaseio.com")
-          store (<!! (new-fire-store :fire :db db))]
+          store (<!! (new-fire-store :fire :db db :root "konserve-write-test"))]
       (is (not (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :bar))
       (is (<!! (k/exists? store :foo)))
@@ -45,7 +44,7 @@
 (deftest update-value-tests
   (testing "Test updating values in the store"
     (let [_ (println "Updating values in the store")
-          store (<!! (new-fire-store :fire :root "updates"))]
+          store (<!! (new-fire-store :fire :root "konserve-updates"))]
       (<!! (k/assoc store :foo :baritone))
       (is (= :baritone (<!! (k/get-in store [:foo]))))
       (<!! (k/update-in store [:foo] name))
@@ -55,7 +54,7 @@
 (deftest exists-tests
   (testing "Test check for existing key in the store"
     (let [_ (println "Checking if keys exist")
-          store (<!! (new-fire-store :fire))]
+          store (<!! (new-fire-store :fire :root "konserve-exists-test"))]
       (is (not (<!! (k/exists? store :foo))))
       (<!! (k/assoc store :foo :baritone))
       (is  (<!! (k/exists? store :foo)))
@@ -66,7 +65,7 @@
 (deftest binary-tests
   (testing "Test writing binary date"
     (let [_ (println "Reading and writing binary data")
-          store (<!! (new-fire-store :fire))]
+          store (<!! (new-fire-store :fire :root "konserve-binary-test"))]
       (is (not (<!! (k/exists? store :binbar))))
       (<!! (k/bget store :binbar (fn [ans] (is (nil? ans)))))
       (<!! (k/bassoc store :binbar (byte-array (range 10))))
@@ -83,7 +82,7 @@
 (deftest key-tests
   (testing "Test getting keys from the store"
     (let [_ (println "Getting keys from store")
-          store (<!! (new-fire-store :fire))]
+          store (<!! (new-fire-store :fire :root "konserve-key-test"))]
       (is (= #{} (<!! (async/into #{} (k/keys store)))))
       (<!! (k/assoc store :baz 20))
       (<!! (k/assoc store :binbar 20))
@@ -110,7 +109,7 @@
   (testing "Invalid store functionality."
     (let [_ (println "Connecting to invalid store")
           store (<!! (new-fire-store :non-existent-key))]
-      (is (= ExceptionInfo (type store))))))
+      (is (exception? store)))))
 
 (def home
   [:map
@@ -127,7 +126,7 @@
 (deftest realistic-test
   (testing "Realistic data test."
     (let [_ (println "Entering realistic data")
-          store (<!! (new-fire-store :fire))
+          store (<!! (new-fire-store :fire :root "konserve-realistic-test"))
           home (mg/generate home {:size 20 :seed 2})
           address (:address home)
           addressless (dissoc home :address)
@@ -157,7 +156,7 @@
 (deftest bulk-test
   (testing "Bulk data test."
     (let [_ (println "Writing bulk data")
-          store (<!! (new-fire-store :fire))
+          store (<!! (new-fire-store :fire :root "konserve-bulk-test"))
           string20MB (apply str (vec (range 3000000)))
           range2MB 2097152
           sevens (repeat range2MB 7)]
@@ -171,72 +170,61 @@
                                            sevens)))))
       (delete-store store))))  
 
-(deftest version-test
-  (testing "Test check for store version being store with data"
-    (let [_ (println "Checking if store version is stored")
-          store (<!! (new-fire-store :fire))
-          fstore (:store store)
-          id (str (hasch/uuid :foo))]
+(deftest raw-meta-test
+  (testing "Test header storage"
+    (let [_ (println "Checking if headers are stored correctly")
+          store (<!! (new-fire-store :fire  :root "konserve-mraw-test"))]
       (<!! (k/assoc store :foo :bar))
-      (is (= :bar (<!! (k/get store :foo))))
-      (is (= (byte kf/store-version) 
-             (let [res (fire/read (:db fstore) (str (:root fstore) "/" id "/data") (:auth fstore))]
-                (-> res :headers decode-str vec (nth 0)))))         
-      (delete-store store))))
+      (<!! (k/assoc store :eye :ear))
+      (let [mraw (<!! (kl/-get-raw-meta store :foo))
+            mraw2 (<!! (kl/-get-raw-meta store :eye))
+            header (take 4 (map byte mraw))]
+        (<!! (kl/-put-raw-meta store :foo mraw2))
+        (<!! (kl/-put-raw-meta store :baritone mraw2))
+        (is (= header [1 1 1 0]))
+        (is (= :eye (:key (<!! (k/get-meta store :foo)))))
+        (is (= :eye (:key (<!! (k/get-meta store :baritone))))))        
+      (delete-store store))))          
 
-(deftest serializer-test
-  (testing "Test check for serilizer type being store with data"
-    (let [_ (println "Checking if serilizer type is stored")
-          store (<!! (new-fire-store :fire))
-          fstore (:store store)
-          id (str (hasch/uuid :foo))]
+(deftest raw-value-test
+  (testing "Test value storage"
+    (let [_ (println "Checking if values are stored correctly")
+          store (<!! (new-fire-store :fire :root "konserve-vraw-test"))]
       (<!! (k/assoc store :foo :bar))
-      (is (= :bar (<!! (k/get store :foo))))
-      (is (= (byte kf/serializer) 
-             (let [res (fire/read (:db fstore) (str (:root fstore) "/" id "/data") (:auth fstore))]
-              (-> res :headers decode-str vec (nth 1)))))     
-      (delete-store store))))
-
-(deftest compressor-test
-  (testing "Test check for compressor type being store with data"
-    (let [_ (println "Checking if compressor type is stored")
-          store (<!! (new-fire-store :fire))
-          fstore (:store store)
-          id (str (hasch/uuid :foo))]
-      (<!! (k/assoc store :foo :bar))
-      (is (= :bar (<!! (k/get store :foo))))
-      (is (= (byte kf/compressor) 
-             (let [res (fire/read (:db fstore) (str (:root fstore) "/" id "/data") (:auth fstore))]
-              (-> res :headers decode-str vec (nth 2)))))              
-      (delete-store store))))
-
-(deftest encryptor-test
-  (testing "Test check for encryptor type being store with data"
-    (let [_ (println "Checking if encryptor type is stored")
-          store (<!! (new-fire-store :fire))
-          fstore (:store store)
-          id (str (hasch/uuid :foo))]
-      (<!! (k/assoc store :foo :bar))
-      (is (= :bar (<!! (k/get store :foo))))
-      (is (= (byte kf/encryptor) 
-             (let [res (fire/read (:db fstore) (str (:root fstore) "/" id "/data") (:auth fstore))]
-              (-> res :headers decode-str vec (nth 3)))))          
-      (delete-store store))))       
+      (<!! (k/assoc store :eye :ear))
+      (let [mvalue (<!! (kl/-get-raw-value store :foo))
+            mvalue2 (<!! (kl/-get-raw-value store :eye))
+            header (take 4 (map byte mvalue))]
+        (<!! (kl/-put-raw-value store :foo mvalue2))
+        (<!! (kl/-put-raw-value store :baritone mvalue2))
+        (is (= header [1 1 1 0]))
+        (is (= :ear (<!! (k/get store :foo))))
+        (is (= :ear (<!! (k/get store :baritone)))))      
+      (delete-store store))))      
 
 (deftest exceptions-test
   (testing "Test exception handling"
     (let [_ (println "Generating exceptions")
-          store (<!! (new-fire-store :fire))
-          corrupt (update-in store [:store] #(assoc % :auth {:not "empty"}))] ; let's corrupt our store
-      (is (= ExceptionInfo (type (<!! (k/get corrupt :bad)))))
-      (is (= ExceptionInfo (type (<!! (k/get-meta corrupt :bad)))))
-      (is (= ExceptionInfo (type (<!! (k/assoc corrupt :bad 10)))))
-      (is (= ExceptionInfo (type (<!! (k/dissoc corrupt :bad)))))
-      (is (= ExceptionInfo (type (<!! (k/assoc-in corrupt [:bad :robot] 10)))))
-      (is (= ExceptionInfo (type (<!! (k/update-in corrupt [:bad :robot] inc)))))
-      (is (= ExceptionInfo (type (<!! (k/exists? corrupt :bad)))))
-      (is (= ExceptionInfo (type (<!! (k/keys corrupt)))))
-      (is (= ExceptionInfo (type (<!! (k/bget corrupt :bad (fn [_] nil))))))   
-      (is (= ExceptionInfo (type (<!! (k/bassoc corrupt :binbar (byte-array (range 10)))))))   
-      (is (= ExceptionInfo (type (<!! (delete-store corrupt)))))
-      (delete-store store))))
+          store (<!! (new-fire-store :fire :root "konserve-exceptions-test"))
+          params (clojure.core/keys store)
+          corruptor (fn [s k] 
+                        (if (= (type (k s)) clojure.lang.Atom)
+                          (clojure.core/assoc-in s [k] (atom {})) 
+                          (clojure.core/assoc-in s [k] (UnknownType.))))
+          corrupt (reduce corruptor store params)] ; let's corrupt our store
+      (is (exception? (<!! (new-fire-store 10))))
+      (is (exception? (<!! (k/get corrupt :bad))))
+      (is (exception? (<!! (k/get-meta corrupt :bad))))
+      (is (exception? (<!! (k/assoc corrupt :bad 10))))
+      (is (exception? (<!! (k/dissoc corrupt :bad))))
+      (is (exception? (<!! (k/assoc-in corrupt [:bad :robot] 10))))
+      (is (exception? (<!! (k/update-in corrupt [:bad :robot] inc))))
+      (is (exception? (<!! (k/exists? corrupt :bad))))
+      (is (exception? (<!! (k/keys corrupt))))
+      (is (exception? (<!! (k/bget corrupt :bad (fn [_] nil)))))   
+      (is (exception? (<!! (k/bassoc corrupt :binbar (byte-array (range 10))))))
+      (is (exception? (<!! (kl/-get-raw-value corrupt :bad))))
+      (is (exception? (<!! (kl/-put-raw-value corrupt :bad (byte-array (range 10))))))
+      (is (exception? (<!! (kl/-get-raw-meta corrupt :bad))))
+      (is (exception? (<!! (kl/-put-raw-meta corrupt :bad (byte-array (range 10))))))
+      (is (exception? (<!! (delete-store corrupt)))))))
