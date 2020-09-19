@@ -109,7 +109,7 @@
           store (<!! (new-fire-store :non-existent-key))
           store2 (<!! (new-fire-store :non-existent-key :db "invalid"))]
       (is (exception? store))
-      (is (exception? store)))))
+      (is (exception? store2)))))
 
 (def home
   [:map
