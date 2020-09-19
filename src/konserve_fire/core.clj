@@ -30,7 +30,7 @@
 
 (defn prep-ex 
   [^String message ^Exception e]
-  (.printStackTrace e)
+  ; (.printStackTrace e)
   (ex-info message {:error (.getMessage e) :cause (.getCause e) :trace (.getStackTrace e)}))
 
 (defn prep-stream 
@@ -221,17 +221,15 @@
               (async/close! res-ch)))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve raw metadata from store" e)))))
       res-ch))
-  (-put-raw-meta [store key binary]
+  (-put-raw-meta [this key binary]
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
-          (let [res (io/raw-update-meta store (str-uuid key) binary)]
-            (if res
-              (async/put! res-ch res)
-              (async/close! res-ch)))
+          (io/raw-update-meta store (str-uuid key) binary)
+          (async/close! res-ch)
           (catch Exception e (async/put! res-ch (prep-ex "Failed to write raw metadata to store" e)))))
       res-ch))
-  (-get-raw-value [store key]
+  (-get-raw-value [this key]
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
@@ -241,14 +239,12 @@
               (async/close! res-ch)))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve raw value from store" e)))))
       res-ch))
-  (-put-raw-value [store key binary]
+  (-put-raw-value [this key binary]
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
-          (let [res (io/raw-update-it-only store (str-uuid key) binary)]
-            (if res
-              (async/put! res-ch res)
-              (async/close! res-ch)))
+          (io/raw-update-it-only store (str-uuid key) binary)
+          (async/close! res-ch)
           (catch Exception e (async/put! res-ch (prep-ex "Failed to write raw value to store" e)))))
       res-ch)))
 
@@ -269,9 +265,9 @@
                 final-db (if (nil? db) (:project-id auth) db)
                 final-root (if (str/starts-with? root "/") root (str "/" root))]
             (when-not final-db 
-              (throw (prep-ex "Invalid database" (Exception. "No database specified and one could not be automatically determined." ))))
-            (when-not auth
-              (throw (prep-ex "Authentication failed" (Exception. (str "Authentication failed using environment variablbe: " env)))))              
+              (throw (prep-ex "No database specified and one could not be automatically determined." {})))
+            (when-not (:token auth)
+              (throw (prep-ex (str "Authentication failed using environment variable: " env) {})))              
             (async/put! res-ch
               (map->FireStore { :store {:db final-db :auth auth :root final-root}
                                 :default-serializer default-serializer

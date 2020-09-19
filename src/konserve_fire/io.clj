@@ -60,12 +60,12 @@
 (defn get-it-only 
   [store id]
   (let [resp (fire/read (:db store) (str (:root store) "/" id "/data") (:auth store))]
-    (when resp (->> resp ^String combine-str (.decode b64decoder) split-header))))
+    (when resp (->> resp ^String (combine-str) (.decode b64decoder) split-header))))
 
 (defn get-meta
   [store id]
   (let [resp (fire/read (:db store) (str (:root store) "/" id "/meta") (:auth store))]
-    (when resp (->> resp ^String combine-str (.decode b64decoder) split-header))))
+    (when resp (->> resp ^String (combine-str) (.decode b64decoder) split-header))))
 
 (defn update-it 
   [store id data]
@@ -85,22 +85,21 @@
 (defn raw-get-it-only 
   [store id]
   (let [resp (fire/read (:db store) (str (:root store) "/" id "/data") (:auth store))]
-    (when resp (->> resp ^String combine-str (.decode b64decoder)))))
+    (when resp (->> resp ^String (combine-str) (.decode b64decoder)))))
 
 (defn raw-get-meta 
   [store id]
   (let [resp (fire/read (:db store) (str (:root store) "/" id "/meta") (:auth store))]
-    (when resp (->> resp ^String combine-str (.decode b64decoder)))))
+    (when resp (->> resp ^String (combine-str) (.decode b64decoder)))))
   
 (defn raw-update-it-only 
   [store id data]
   (when data
     (fire/update! (:db store) (str (:root store) "/" id "/data") 
-      (chunk-str (.encodeToString b64encoder ^"[B" data)) (:auth store) {:print "pretty"})))
+      (chunk-str (.encodeToString b64encoder ^"[B" data)) (:auth store) {:print "silent"})))
 
 (defn raw-update-meta
   [store id meta]
   (when meta
-    (fire/update! (:db store) (str (:root store) "/" id "/meta") 
-      (chunk-str (.encodeToString b64encoder ^"[B" meta)) (:auth store) {:print "pretty"})))
-  
+    (fire/write! (:db store) (str (:root store) "/" id "/meta") 
+      (chunk-str (.encodeToString b64encoder ^"[B" meta)) (:auth store) {:print "silent"})))

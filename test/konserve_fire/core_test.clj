@@ -8,11 +8,9 @@
             [fire.auth :as fire-auth]))
 
 (deftype UnknownType [])
+
 (defn exception? [thing]
-  (let [ex (type thing)]
-    (or (= clojure.lang.ExceptionInfo ex) 
-        (= java.lang.Exception ex) 
-        (= java.lang.Throwable ex))))
+  (instance? Throwable thing))
 
 (deftest get-nil-tests
   (testing "Test getting on empty store"
@@ -108,7 +106,9 @@
 (deftest invalid-store-test
   (testing "Invalid store functionality."
     (let [_ (println "Connecting to invalid store")
-          store (<!! (new-fire-store :non-existent-key))]
+          store (<!! (new-fire-store :non-existent-key))
+          store2 (<!! (new-fire-store :non-existent-key :db "invalid"))]
+      (is (exception? store))
       (is (exception? store)))))
 
 (def home
@@ -178,10 +178,12 @@
       (<!! (k/assoc store :eye :ear))
       (let [mraw (<!! (kl/-get-raw-meta store :foo))
             mraw2 (<!! (kl/-get-raw-meta store :eye))
+            mraw3 (<!! (kl/-get-raw-meta store :not-there))
             header (take 4 (map byte mraw))]
         (<!! (kl/-put-raw-meta store :foo mraw2))
         (<!! (kl/-put-raw-meta store :baritone mraw2))
         (is (= header [1 1 1 0]))
+        (is (nil? mraw3))
         (is (= :eye (:key (<!! (k/get-meta store :foo)))))
         (is (= :eye (:key (<!! (k/get-meta store :baritone))))))        
       (delete-store store))))          
@@ -194,10 +196,12 @@
       (<!! (k/assoc store :eye :ear))
       (let [mvalue (<!! (kl/-get-raw-value store :foo))
             mvalue2 (<!! (kl/-get-raw-value store :eye))
+            mvalue3 (<!! (kl/-get-raw-value store :not-there))
             header (take 4 (map byte mvalue))]
         (<!! (kl/-put-raw-value store :foo mvalue2))
         (<!! (kl/-put-raw-value store :baritone mvalue2))
         (is (= header [1 1 1 0]))
+        (is (nil? mvalue3))
         (is (= :ear (<!! (k/get store :foo))))
         (is (= :ear (<!! (k/get store :baritone)))))      
       (delete-store store))))      
@@ -212,7 +216,7 @@
                           (clojure.core/assoc-in s [k] (atom {})) 
                           (clojure.core/assoc-in s [k] (UnknownType.))))
           corrupt (reduce corruptor store params)] ; let's corrupt our store
-      (is (exception? (<!! (new-fire-store 10))))
+      (is (exception? (<!! (new-fire-store :not-existent))))
       (is (exception? (<!! (k/get corrupt :bad))))
       (is (exception? (<!! (k/get-meta corrupt :bad))))
       (is (exception? (<!! (k/assoc corrupt :bad 10))))
