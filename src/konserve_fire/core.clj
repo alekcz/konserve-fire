@@ -265,9 +265,7 @@
                 final-db (if (nil? db) (:project-id auth) db)
                 final-root (if (str/starts-with? root "/") root (str "/" root))]
             (when-not final-db 
-              (throw (prep-ex "No database specified and one could not be automatically determined." (Exception.))))
-            (when-not (:token auth)
-              (throw (prep-ex (str "Authentication failed using environment variable: " env) (Exception.))))              
+              (throw (prep-ex "No database specified and one could not be automatically determined." (Exception.))))             
             (async/put! res-ch
               (map->FireStore { :store {:db final-db :auth auth :root final-root}
                                 :default-serializer default-serializer

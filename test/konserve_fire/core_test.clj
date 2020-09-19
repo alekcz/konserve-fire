@@ -106,10 +106,8 @@
 (deftest invalid-store-test
   (testing "Invalid store functionality."
     (let [_ (println "Connecting to invalid store")
-          store (<!! (new-fire-store :non-existent-key))
-          store2 (<!! (new-fire-store :non-existent-key :db "invalid"))]
-      (is (exception? store))
-      (is (exception? store2)))))
+          store (<!! (new-fire-store :non-existent-key))]
+      (is (exception? store)))))
 
 (def home
   [:map
