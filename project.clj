@@ -5,8 +5,8 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :aot :all
   :dependencies [[org.clojure/clojure "1.9.0"]
-                 [alekcz/fire "0.3.0-20200919.071932-2"]
+                 [alekcz/fire "0.3.0"]
                  [io.replikativ/konserve "0.6.0-alpha1"]]
   :repl-options {:init-ns konserve-fire.core}
-  :plugins [[lein-cloverage "1.1.2"]]
+  :plugins [[lein-cloverage "1.2.0"]]
   :profiles { :dev {:dependencies [[metosin/malli "0.0.1-20200404.091302-14"]]}})
