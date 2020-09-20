@@ -6,8 +6,6 @@ A Firebase implementation of the [konserve kv-protocol](https://github.com/repli
 
 ![master](https://github.com/alekcz/konserve-fire/workflows/master/badge.svg) [![codecov](https://codecov.io/gh/alekcz/konserve-fire/branch/master/graph/badge.svg)](https://codecov.io/gh/alekcz/konserve-fire)   
 
-_Pre-alpha_
-
 ## Prerequisites
 
 For konserve-fire you will need to create a Realtime Database on Firebase and store the service account credentials in the an environment variable. The default variable is `GOOGLE_APPLICATION_CREDENTIALS`
@@ -16,7 +14,7 @@ For konserve-fire you will need to create a Realtime Database on Firebase and st
 
 [![Clojars Project](https://img.shields.io/clojars/v/alekcz/konserve-fire.svg)](https://clojars.org/alekcz/konserve-fire)
 
-`[alekcz/konserve-fire "0.2.0"]`
+`[alekcz/konserve-fire "0.3.0-alpha1"]`
 
 ```clojure
 (require '[konserve-fire.core :refer :all]
