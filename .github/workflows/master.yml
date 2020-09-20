@@ -14,7 +14,9 @@ jobs:
     - name: Run tests
       env:
         FIRE: ${{ secrets.FIRE }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.FIRE }}
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        _JAVA_OPTIONS: -Xmx5g
       run: |
         lein cloverage --codecov
         bash <(curl -s https://codecov.io/bash)
