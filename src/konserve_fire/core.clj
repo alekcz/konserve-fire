@@ -8,6 +8,7 @@
             [konserve-fire.io :as io]
             [fire.auth :as fire-auth]
             [fire.core :as fire]
+            [fire.socket :as fs]
             [clojure.string :as str]
             [konserve.protocols :refer [PEDNAsyncKeyValueStore
                                         -exists? -get -get-meta
@@ -263,11 +264,12 @@
         (try
           (let [auth (when env (fire-auth/create-token env))
                 final-db (if (nil? db) (:project-id auth) db)
+                socket-db (when final-db (-> final-db (str/replace "http://" "ws://") (str/replace "https://" "wss://")))
                 final-root (if (str/starts-with? root "/") root (str "/" root))]
-            (when-not final-db 
+            (when-not socket-db 
               (throw (prep-ex "No database specified and one could not be automatically determined." (Exception.))))             
             (async/put! res-ch
-              (map->FireStore { :store {:db final-db :auth auth :root final-root}
+              (map->FireStore { :store {:db final-db :auth auth :root final-root :conn (fs/connect socket-db auth)}
                                 :default-serializer default-serializer
                                 :serializers (merge ser/key->serializer serializers)
                                 :compressor compressor

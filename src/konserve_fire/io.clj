@@ -1,6 +1,7 @@
 (ns konserve-fire.io
   "IO function for interacting with database"
   (:require [fire.core :as fire]
+            [fire.socket :as socket]
             [clojure.string :as str])
   (:import  [java.util Base64 Base64$Decoder Base64$Encoder]
             [java.io ByteArrayInputStream]))
@@ -49,31 +50,31 @@
 
 (defn it-exists? 
   [store id]
-    (let [resp (fire/read (:db store) (str (:root store) "/" id "/data") (:auth store) {:query {:shallow true}})]
+    (let [resp (socket/read (:conn store) (str (:root store) "/" id "/data"))]
     (some? resp)))
   
 (defn get-it 
   [store id]
-  (let [resp (fire/read (:db store) (str (:root store) "/" id) (:auth store))]
+  (let [resp (socket/read (:conn store) (str (:root store) "/" id))]
     (prep-read resp)))
 
 (defn get-it-only 
   [store id]
-  (let [resp (fire/read (:db store) (str (:root store) "/" id "/data") (:auth store))]
+  (let [resp (socket/read (:conn store) (str (:root store) "/" id "/data"))]
     (when resp (->> resp ^String (combine-str) (.decode b64decoder) split-header))))
 
 (defn get-meta
   [store id]
-  (let [resp (fire/read (:db store) (str (:root store) "/" id "/meta") (:auth store))]
+  (let [resp (socket/read (:conn store) (str (:root store) "/" id "/meta"))]
     (when resp (->> resp ^String (combine-str) (.decode b64decoder) split-header))))
 
 (defn update-it 
   [store id data]
-  (fire/update! (:db store) (str (:root store) "/" id) (prep-write data) (:auth store) {:print "silent"}))
+  (fire/update! (:db store) (str (:root store) "/" id) (prep-write data) (:auth store)))
 
 (defn delete-it 
   [store id]
-  (fire/delete! (:db store) (str (:root store) "/" id) (:auth store)))
+  (socket/delete! (:conn store) (str (:root store) "/" id)))
 
 (defn get-keys 
   [store]
@@ -84,22 +85,22 @@
 
 (defn raw-get-it-only 
   [store id]
-  (let [resp (fire/read (:db store) (str (:root store) "/" id "/data") (:auth store))]
+  (let [resp (socket/read (:conn store) (str (:root store) "/" id "/data"))]
     (when resp (->> resp ^String (combine-str) (.decode b64decoder)))))
 
 (defn raw-get-meta 
   [store id]
-  (let [resp (fire/read (:db store) (str (:root store) "/" id "/meta") (:auth store))]
+  (let [resp (socket/read (:conn store) (str (:root store) "/" id "/meta"))]
     (when resp (->> resp ^String (combine-str) (.decode b64decoder)))))
   
 (defn raw-update-it-only 
   [store id data]
   (when data
-    (fire/update! (:db store) (str (:root store) "/" id "/data") 
-      (chunk-str (.encodeToString b64encoder ^"[B" data)) (:auth store) {:print "silent"})))
+    (socket/update! (:conn store) (str (:root store) "/" id "/data") 
+      (chunk-str (.encodeToString b64encoder ^"[B" data)))))
 
 (defn raw-update-meta
   [store id meta]
   (when meta
-    (fire/write! (:db store) (str (:root store) "/" id "/meta") 
-      (chunk-str (.encodeToString b64encoder ^"[B" meta)) (:auth store) {:print "silent"})))
+    (socket/write! (:conn store) (str (:root store) "/" id "/meta") 
+      (chunk-str (.encodeToString b64encoder ^"[B" meta)))))
