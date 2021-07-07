@@ -5,7 +5,7 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :aot :all
   :dependencies [[org.clojure/clojure "1.10.3" :scope "provided"]
-                 [alekcz/fire "0.4.0-20210707.143618-2"]
+                 [alekcz/fire "0.4.0"]
                  [io.replikativ/konserve "0.6.0-alpha3"]]
   :repl-options {:init-ns konserve-fire.core}
   :plugins [[lein-cloverage "1.2.0"]]
