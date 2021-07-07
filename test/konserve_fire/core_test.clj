@@ -5,12 +5,33 @@
             [konserve.storage-layout :as kl]
             [konserve-fire.core :refer [new-fire-store delete-store]]
             [malli.generator :as mg]
-            [fire.auth :as fire-auth]))
+            [fire.auth :as fire-auth]
+            [criterium.core :as cc]))
 
 (deftype UnknownType [])
 
 (defn exception? [thing]
   (instance? Throwable thing))
+
+(defn benchmark []
+  (let [rk (keyword (str "foo" (rand-int 1000)))
+        rk2 (keyword (str "foo" (rand-int 1000)))
+        store (new-fire-store :fire :root "konserve-benchmark-test")
+        data (range 30000)
+        data2 (range 30000)
+        bin (byte-array (range 1000000))]
+    (cc/with-progress-reporting 
+      (cc/bench
+        (do
+          (<!! (k/exists? store rk))
+          (<!! (k/assoc store rk data))
+          (<!! (k/get store rk))
+          (<!! (k/update-in store [rk] data2))
+          (<!! (k/get-meta store rk))
+          (<!! (k/bassoc store rk2 bin))
+          (<!! (k/bget store rk2 (fn [_])))
+          (<!! (k/keys store))) :verbose))
+    (delete-store store)))
 
 (deftest get-nil-tests
   (testing "Test getting on empty store"
