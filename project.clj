@@ -1,11 +1,11 @@
-(defproject alekcz/konserve-fire "0.4.0-SNAPSHOT"
+(defproject alekcz/konserve-fire "0.4.0"
   :description "A Firebase backend for konserve."
   :url "https://github.com/alekcz/konserve-fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :aot :all
   :dependencies [[org.clojure/clojure "1.10.3" :scope "provided"]
-                 [alekcz/fire "0.4.1"]
+                 [alekcz/fire "0.5.0"]
                  [io.replikativ/konserve "0.6.0-alpha3"]]
   :repl-options {:init-ns konserve-fire.core}
   :plugins [[lein-cloverage "1.2.0"]]
