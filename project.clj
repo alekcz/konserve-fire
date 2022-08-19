@@ -8,6 +8,7 @@
                  [alekcz/fire "0.5.1-20220819.113551-7"]
                  [io.replikativ/konserve "0.6.0-alpha3"]]
   :repl-options {:init-ns konserve-fire.core}
+  :javac-options ["--release" "8" "-g"]
   :plugins [[lein-cloverage "1.2.2"]]
   :profiles { :dev {:dependencies [[metosin/malli "0.0.1-20200404.091302-14"]
                                    [criterium "0.4.6"]]}})
