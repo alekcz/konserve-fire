@@ -3,9 +3,9 @@
   :url "https://github.com/alekcz/konserve-fire"
   :license {:name "EPL-2.0 OR GPL-2.0-or-later WITH Classpath-exception-2.0"
             :url "https://www.eclipse.org/legal/epl-2.0/"}
-  :aot :all
   :dependencies [[org.clojure/clojure "1.11.1"]
-                 [alekcz/fire "0.5.1-20220819.113551-7"]
+                 [org.clojure/core.async "1.5.648"]
+                 [alekcz/fire "0.5.1-20220902.150953-8"]
                  [io.replikativ/konserve "0.6.0-alpha3"]]
   :repl-options {:init-ns konserve-fire.core}
   :javac-options ["--release" "8" "-g"]
