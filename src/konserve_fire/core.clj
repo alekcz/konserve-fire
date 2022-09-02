@@ -41,18 +41,18 @@
 (defrecord FireStore [store default-serializer serializers compressor encryptor read-handlers write-handlers locks]
   PEDNAsyncKeyValueStore
   (-exists? 
-    [this key] 
+    [_this key] 
       (let [res-ch (async/chan 1)]
-        (async/thread
+        (async/go
           (try
             (async/put! res-ch (io/it-exists? store (str-uuid key)))
             (catch Exception e (async/put! res-ch (prep-ex "Failed to determine if item exists" e)))))
         res-ch))
 
   (-get 
-    [this key] 
+    [_this key] 
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (let [[header res] (io/get-it-only store (str-uuid key))]
             (if (some? res) 
@@ -67,9 +67,9 @@
       res-ch))
 
   (-get-meta 
-    [this key] 
+    [_this key] 
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (let [[header res] (io/get-meta store (str-uuid key))]
             (if (some? res) 
@@ -84,9 +84,9 @@
       res-ch))
 
   (-update-in 
-    [this key-vec meta-up-fn up-fn args]
+    [_this key-vec meta-up-fn up-fn args]
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (let [[fkey & rkey] key-vec
                 [[mheader ometa'] [vheader oval']] (io/get-it store (str-uuid fkey))
@@ -128,9 +128,9 @@
   (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
 
   (-dissoc 
-    [this key] 
+    [_this key] 
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (io/delete-it store (str-uuid key))
           (async/close! res-ch)
@@ -139,9 +139,9 @@
 
   PBinaryAsyncKeyValueStore
   (-bget 
-    [this key locked-cb]
+    [_this key locked-cb]
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (let [[header res] (io/get-it-only store (str-uuid key))]
             (if (some? res) 
@@ -156,9 +156,9 @@
       res-ch))
 
   (-bassoc 
-    [this key meta-up-fn input]
+    [_this key meta-up-fn input]
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (let [[[mheader old-meta'] [_ old-val]] (io/get-it store (str-uuid key))
                 old-meta (when old-meta' 
@@ -193,7 +193,7 @@
   (-keys 
     [_]
     (let [res-ch (async/chan)]
-      (async/thread
+      (async/go
         (try
           (let [key-stream (io/get-keys store)
                 keys' (when key-stream
@@ -211,9 +211,9 @@
         res-ch))
         
   SplitLayout      
-  (-get-raw-meta [this key]
+  (-get-raw-meta [_this key]
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (let [res (io/raw-get-meta store (str-uuid key))]
             (if res
@@ -221,17 +221,17 @@
               (async/close! res-ch)))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve raw metadata from store" e)))))
       res-ch))
-  (-put-raw-meta [this key binary]
+  (-put-raw-meta [_this key binary]
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (io/raw-update-meta store (str-uuid key) binary)
           (async/close! res-ch)
           (catch Exception e (async/put! res-ch (prep-ex "Failed to write raw metadata to store" e)))))
       res-ch))
-  (-get-raw-value [this key]
+  (-get-raw-value [_this key]
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (let [res (io/raw-get-it-only store (str-uuid key))]
             (if res
@@ -239,9 +239,9 @@
               (async/close! res-ch)))
           (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve raw value from store" e)))))
       res-ch))
-  (-put-raw-value [this key binary]
+  (-put-raw-value [_this key binary]
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (io/raw-update-it-only store (str-uuid key) binary)
           (async/close! res-ch)
@@ -259,7 +259,7 @@
                 read-handlers (atom {})
                 write-handlers (atom {})}}]
     (let [res-ch (async/chan 1)]
-      (async/thread
+      (async/go
         (try
           (let [auth (when env (fire-auth/create-token env))
                 final-db (if (nil? db) (:project-id auth) db)
@@ -280,7 +280,7 @@
 
 (defn delete-store [fire-store]
   (let [res-ch (async/chan 1)]
-    (async/thread
+    (async/go
       (try
         (let [store (:store fire-store)]
           (fire/delete! (:db store) (str (:root store)) (:auth store))
