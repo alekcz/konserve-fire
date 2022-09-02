@@ -5,7 +5,7 @@
             :url "https://www.eclipse.org/legal/epl-2.0/"}
   :dependencies [[org.clojure/clojure "1.11.1"]
                  [org.clojure/core.async "1.5.648"]
-                 [alekcz/fire "0.5.1-20220902.150953-8"]
+                 [alekcz/fire "0.5.1-20220902.161439-9"]
                  [io.replikativ/konserve "0.6.0-alpha3"]]
   :repl-options {:init-ns konserve-fire.core}
   :javac-options ["--release" "8" "-g"]
