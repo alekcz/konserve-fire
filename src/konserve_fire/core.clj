@@ -46,7 +46,8 @@
         (async/thread
           (try
             (async/put! res-ch (io/it-exists? store (str-uuid key)))
-            (catch Exception e (async/put! res-ch (prep-ex "Failed to determine if item exists" e)))))
+            (catch Exception e (async/put! res-ch (prep-ex "Failed to determine if item exists" e)))
+            (finally (async/close! res-ch))))
         res-ch))
 
   (-get 
@@ -61,9 +62,9 @@
                     rencryptor  (encr/byte->encryptor  (get header 3))
                     reader (-> rserializer rencryptor rcompressor)
                     data (-deserialize reader read-handlers res)]
-                (async/put! res-ch data))
-              (async/close! res-ch)))
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve value from store" e)))))
+                (async/put! res-ch data))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve value from store" e)))
+          (finally (async/close! res-ch))))
       res-ch))
 
   (-get-meta 
@@ -78,9 +79,9 @@
                     rencryptor  (encr/byte->encryptor  (get header 3))
                     reader (-> rserializer rencryptor rcompressor)
                     data (-deserialize reader read-handlers res)] 
-                (async/put! res-ch data))
-              (async/close! res-ch)))
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve metadata from store" e)))))
+                (async/put! res-ch data))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve metadata from store" e)))
+          (finally (async/close! res-ch))))
       res-ch))
 
   (-update-in 
@@ -122,7 +123,8 @@
               (-serialize writer vbaos write-handlers nval))    
             (io/update-it store (str-uuid fkey) [(.toByteArray mbaos) (.toByteArray vbaos)])
             (async/put! res-ch [(second old-val) nval]))
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to update/write value in store" e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to update/write value in store" e)))
+          (finally (async/close! res-ch))))
         res-ch))
 
   (-assoc-in [this key-vec meta val] (-update-in this key-vec meta (fn [_] val) []))
@@ -133,8 +135,8 @@
       (async/thread
         (try
           (io/delete-it store (str-uuid key))
-          (async/close! res-ch)
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to delete key-value pair from store" e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to delete key-value pair from store" e)))
+          (finally (async/close! res-ch))))
         res-ch))
 
   PBinaryAsyncKeyValueStore
@@ -150,9 +152,9 @@
                     rencryptor  (encr/byte->encryptor  (get header 3))
                     reader (-> rserializer rencryptor rcompressor)
                     data (-deserialize reader read-handlers res)]
-                (async/put! res-ch (locked-cb (prep-stream data))))
-              (async/close! res-ch)))
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve binary value from store" e)))))
+                (async/put! res-ch (locked-cb (prep-stream data))))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve binary value from store" e)))
+          (finally (async/close! res-ch))))
       res-ch))
 
   (-bassoc 
@@ -186,7 +188,8 @@
               (-serialize writer vbaos write-handlers input))  
             (io/update-it store (str-uuid key) [(.toByteArray mbaos) (.toByteArray vbaos)])
             (async/put! res-ch [old-val input]))
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to write binary value in store" e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to write binary value in store" e)))
+          (finally (async/close! res-ch))))
         res-ch))
 
   PKeyIterable
@@ -205,9 +208,9 @@
                             (-deserialize reader read-handlers k))))
                 keys (doall (map :key keys'))]
             (doall
-              (map #(async/put! res-ch %) keys))
-            (async/close! res-ch)) 
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve keys from store" e)))))
+              (map #(async/put! res-ch %) keys))) 
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve keys from store" e)))
+          (finally (async/close! res-ch))))
         res-ch))
         
   SplitLayout      
@@ -216,36 +219,39 @@
       (async/thread
         (try
           (let [res (io/raw-get-meta store (str-uuid key))]
-            (if res
-              (async/put! res-ch res)
-              (async/close! res-ch)))
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve raw metadata from store" e)))))
+            (when res
+              (async/put! res-ch res)))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve raw metadata from store" e)))
+          (finally (async/close! res-ch))))
       res-ch))
+      
   (-put-raw-meta [_this key binary]
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
           (io/raw-update-meta store (str-uuid key) binary)
-          (async/close! res-ch)
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to write raw metadata to store" e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to write raw metadata to store" e)))
+          (finally (async/close! res-ch))))
       res-ch))
+
   (-get-raw-value [_this key]
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
           (let [res (io/raw-get-it-only store (str-uuid key))]
-            (if res
-              (async/put! res-ch res)
+            (when res (async/put! res-ch res)
               (async/close! res-ch)))
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve raw value from store" e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to retrieve raw value from store" e)))
+          (finally (async/close! res-ch))))
       res-ch))
+
   (-put-raw-value [_this key binary]
     (let [res-ch (async/chan 1)]
       (async/thread
         (try
           (io/raw-update-it-only store (str-uuid key) binary)
-          (async/close! res-ch)
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to write raw value to store" e)))))
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to write raw value to store" e)))
+          (finally (async/close! res-ch))))
       res-ch)))
 
 (defn new-fire-store
@@ -275,7 +281,8 @@
                                 :read-handlers read-handlers
                                 :write-handlers write-handlers
                                 :locks (atom {})})))
-          (catch Exception e (async/put! res-ch (prep-ex "Failed to connect to store" e)))))          
+          (catch Exception e (async/put! res-ch (prep-ex "Failed to connect to store" e)))
+          (finally (async/close! res-ch))))          
       res-ch))
 
 (defn delete-store [fire-store]
@@ -283,7 +290,7 @@
     (async/thread
       (try
         (let [store (:store fire-store)]
-          (fire/delete! (:db store) (str (:root store)) (:auth store))
-          (async/close! res-ch))
-        (catch Exception e (async/put! res-ch (prep-ex "Failed to delete store" e)))))          
+          (fire/delete! (:db store) (str (:root store)) (:auth store)))
+        (catch Exception e (async/put! res-ch (prep-ex "Failed to delete store" e)))
+        (finally (async/close! res-ch))))          
     res-ch))

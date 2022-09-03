@@ -229,12 +229,14 @@
   (testing "Test exception handling"
     (let [_ (println "Generating exceptions")
           store (<!! (new-fire-store :fire :root "konserve-exceptions-test"))
+          store2 (<!! (new-fire-store :fire :db "definitely-not-my-db" :root "konserve-exceptions-test"))
           params (clojure.core/keys store)
           corruptor (fn [s k] 
                         (if (= (type (k s)) clojure.lang.Atom)
                           (clojure.core/assoc-in s [k] (atom {})) 
                           (clojure.core/assoc-in s [k] (UnknownType.))))
           corrupt (reduce corruptor store params)] ; let's corrupt our store
+      (is (exception? (<!! (k/assoc store2 :foo :baritone))))
       (is (exception? (<!! (new-fire-store :not-existent))))
       (is (exception? (<!! (k/get corrupt :bad))))
       (is (exception? (<!! (k/get-meta corrupt :bad))))
